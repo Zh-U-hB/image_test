@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>你的清华SIGS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+:root {
+  --accent: #7c3aed; --accent2: #a78bfa; --bg: #0a0a0f;
+  --card-bg: rgba(20,20,30,0.95); --text: #f0f0f5; --text2: #aaa;
+  --radius: 14px; --minimap-w: 260px; --minimap-h: 200px;
+  --sidebar-w: 400px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+
+.page { position:fixed; inset:0; display:none; z-index:1; }
+.page.active { display:flex; }
+
+/* ── Welcome ──────────────────────── */
+#page-welcome {
+  flex-direction:column; align-items:center; justify-content:center;
+  background: radial-gradient(ellipse at center, #1a1030 0%, var(--bg) 70%);
+  text-align:center; gap:16px;
+}
+#page-welcome h1 { font-size:clamp(36px,8vw,64px); font-weight:900; letter-spacing:-2px;
+  background:linear-gradient(135deg,#a78bfa,#7c3aed,#4c1d95); -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent; }
+#page-welcome .tagline { font-size:18px; color:var(--text2); max-width:500px; }
+.btn-group { display:flex; gap:14px; margin-top:20px; flex-wrap:wrap; justify-content:center; }
+.btn {
+  padding:14px 32px; border-radius:28px; border:none; font-size:16px; font-weight:700;
+  cursor:pointer; transition:all .2s; font-family:inherit; letter-spacing:.3px;
+}
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { background:#6d28d9; transform:translateY(-2px); box-shadow:0 8px 24px rgba(124,58,237,.35); }
+.btn-outline { background:transparent; color:var(--text); border:2px solid rgba(255,255,255,.2); }
+.btn-outline:hover { border-color:var(--accent); color:var(--accent); }
+.btn-sm { padding:8px 20px; font-size:14px; }
+
+/* ── Settings overlay ─────────────── */
+#settings-overlay {
+  position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.7);
+  display:none; align-items:center; justify-content:center;
+}
+#settings-overlay.show { display:flex; }
+.settings-panel {
+  background:var(--card-bg); border-radius:var(--radius); padding:32px;
+  min-width:340px; backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,.1);
+}
+.settings-panel h2 { margin-bottom:20px; font-size:20px; }
+.lang-option {
+  display:flex; align-items:center; gap:10px; padding:12px 16px; margin:6px 0;
+  border-radius:10px; cursor:pointer; border:1px solid rgba(255,255,255,.1); transition:all .2s;
+}
+.lang-option:hover { border-color:var(--accent); }
+.lang-option.selected { border-color:var(--accent); background:rgba(124,58,237,.15); }
+.lang-option input { accent-color:var(--accent); }
+
+/* ── Map page ──────────────────────── */
+#page-map { flex-direction:column; }
+#map-wrap { flex:1; position:relative; min-height:0; }
+#map-main { position:absolute; inset:0; }
+
+/* Topbar */
+#topbar {
+  position:fixed; top:0; left:0; right:0; z-index:60; padding:10px 20px;
+  background:rgba(10,10,15,.92); backdrop-filter:blur(10px);
+  display:flex; align-items:center; gap:12px; border-bottom:1px solid rgba(255,255,255,.08);
+  transition:background .4s;
+}
+#topbar.transparent { background:rgba(0,0,0,.4); border-bottom-color:rgba(255,255,255,.06); }
+#topbar h2 { font-size:17px; font-weight:700; }
+#topbar .badge { font-size:11px; background:var(--accent); color:#fff; padding:3px 10px; border-radius:12px; font-weight:600; }
+#topbar .count { font-size:13px; color:var(--text2); margin-left:auto; }
+#topbar .topbar-btn {
+  background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.15);
+  padding:6px 14px; border-radius:16px; cursor:pointer; font-size:13px; font-family:inherit;
+  transition:all .2s;
+}
+#topbar .topbar-btn:hover { border-color:var(--accent); color:var(--accent); }
+#topbar .topbar-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+/* Mode toggle */
+#mode-toggle {
+  position:fixed; top:60px; left:50%; transform:translateX(-50%); z-index:61;
+  display:none; gap:0; background:rgba(0,0,0,.65); border-radius:24px; padding:4px;
+  backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.1);
+}
+.mode-btn {
+  padding:10px 22px; border-radius:22px; border:none; background:transparent;
+  color:rgba(255,255,255,.7); cursor:pointer; font-size:14px; font-weight:600;
+  transition:all .2s; font-family:inherit; white-space:nowrap;
+}
+.mode-btn.active { background:var(--accent); color:#fff; }
+
+/* ── Panorama layer ────────────────── */
+#pano-layer {
+  position:fixed; inset:0; z-index:50; background:#000;
+  opacity:0; pointer-events:none; transition:opacity .4s;
+}
+#pano-layer.active { opacity:1; pointer-events:auto; }
+#pano-canvas-wrap { width:100%; height:100%; cursor:grab; }
+#pano-canvas-wrap:active { cursor:grabbing; }
+
+/* Pano controls */
+#pano-controls {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%); z-index:62;
+  display:flex; gap:8px; opacity:0; pointer-events:none; transition:opacity .4s;
+}
+#pano-controls.show { opacity:1; pointer-events:auto; }
+.pano-btn {
+  width:40px; height:40px; border-radius:50%; border:none;
+  background:rgba(0,0,0,.45); backdrop-filter:blur(8px);
+  color:#fff; cursor:pointer; font-size:18px; display:flex; align-items:center;
+  justify-content:center; transition:background .2s;
+}
+.pano-btn:hover { background:rgba(0,0,0,.65); }
+.pano-btn.active { background:var(--accent); }
+
+#pano-loading {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:62;
+  display:flex; align-items:center; gap:10px; color:rgba(255,255,255,.7); font-size:14px;
+  opacity:0; pointer-events:none; transition:opacity .3s;
+}
+#pano-loading.show { opacity:1; }
+.pano-spinner {
+  width:28px; height:28px; border:3px solid rgba(255,255,255,.15);
+  border-top:3px solid var(--accent); border-radius:50%; animation:spin .8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+#pano-hint {
+  position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
+  z-index:62; color:rgba(255,255,255,.45); font-size:13px;
+  pointer-events:none; transition:opacity .6s; opacity:0;
+}
+#pano-hint.show { opacity:1; }
+#pano-hint.fade { opacity:0; }
+
+#pano-id-tag {
+  position:fixed; top:60px; left:50%; transform:translateX(-50%); z-index:62;
+  color:rgba(255,255,255,.75); font-size:13px; font-weight:600;
+  pointer-events:none; opacity:0; transition:opacity .4s;
+}
+#pano-id-tag.show { opacity:1; }
+#pano-close-btn {
+  position:fixed; top:14px; right:20px; z-index:65; width:36px; height:36px;
+  border-radius:50%; border:none; background:rgba(0,0,0,.5); color:#fff;
+  font-size:20px; cursor:pointer; display:none; align-items:center; justify-content:center;
+}
+#pano-close-btn.show { display:flex; }
+
+/* Minimap */
+#minimap {
+  position:fixed; bottom:20px; left:20px; z-index:62;
+  width:var(--minimap-w); height:var(--minimap-h); border-radius:12px; overflow:hidden;
+  border:2px solid rgba(255,255,255,.85); box-shadow:0 4px 20px rgba(0,0,0,.35);
+  opacity:0; transform:translateY(10px); transition:opacity .4s,transform .4s;
+  pointer-events:none;
+}
+#minimap.show { opacity:1; transform:translateY(0); pointer-events:auto; }
+#minimap .leaflet-control-zoom, #minimap .leaflet-control-attribution { display:none; }
+#minimap-label {
+  position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:5;
+  background:rgba(0,0,0,.6); color:#fff; padding:2px 10px; border-radius:10px;
+  font-size:11px; font-weight:600; pointer-events:none;
+}
+
+/* ── AI Agent Sidebar ──────────────── */
+#agent-sidebar {
+  position:fixed; right:0; top:0; bottom:0; z-index:63;
+  width:var(--sidebar-w); background:var(--card-bg); backdrop-filter:blur(20px);
+  border-left:1px solid rgba(255,255,255,.08);
+  transform:translateX(100%); transition:transform .35s cubic-bezier(.4,0,.2,1);
+  display:flex; flex-direction:column; overflow-y:auto;
+}
+#agent-sidebar.open { transform:translateX(0); }
+#agent-header {
+  padding:20px; border-bottom:1px solid rgba(255,255,255,.08);
+  display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+}
+#agent-header h3 { font-size:17px; font-weight:700; }
+#agent-body { flex:1; padding:20px; overflow-y:auto; }
+.agent-round-label { font-size:12px; color:var(--accent2); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+.agent-round-title { font-size:20px; font-weight:700; margin-bottom:16px; }
+
+.opt-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.opt-card {
+  padding:20px 12px; border-radius:12px; text-align:center; cursor:pointer;
+  border:2px solid rgba(255,255,255,.08); transition:all .2s;
+  background:rgba(255,255,255,.03);
+}
+.opt-card:hover { border-color:var(--accent2); background:rgba(124,58,237,.1); }
+.opt-card.selected { border-color:var(--accent); background:rgba(124,58,237,.2); box-shadow:0 0 16px rgba(124,58,237,.25); }
+.opt-card .icon { font-size:32px; margin-bottom:8px; line-height:1; }
+.opt-card .name { font-size:14px; font-weight:600; }
+
+#prompt-preview {
+  background:rgba(0,0,0,.3); border-radius:10px; padding:14px; margin:16px 0;
+  font-size:13px; color:var(--text2); line-height:1.6; min-height:40px;
+  border:1px solid rgba(255,255,255,.06);
+}
+#prompt-preview strong { color:var(--accent2); }
+#system-prompt-input {
+  width:100%; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.1);
+  border-radius:10px; padding:12px; color:var(--text); font-size:13px;
+  font-family:inherit; resize:vertical; min-height:60px; margin-bottom:16px;
+}
+#agent-generate-btn { width:100%; margin-top:12px; }
+#agent-generate-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* Generation loading */
+#gen-overlay {
+  position:absolute; inset:0; background:rgba(0,0,0,.85); z-index:5;
+  display:none; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+}
+#gen-overlay.show { display:flex; }
+.gen-ring {
+  width:80px; height:80px; border-radius:50%;
+  border:4px solid rgba(255,255,255,.1); border-top-color:var(--accent);
+  animation:spin 1s linear infinite;
+}
+.gen-timer { font-size:24px; font-weight:700; color:var(--accent2); }
+.gen-prompt-preview { font-size:13px; color:var(--text2); max-width:400px; text-align:center; line-height:1.5; }
+
+/* ── Community ──────────────────────── */
+#page-community { flex-direction:column; }
+#community-topbar {
+  padding:16px 20px; display:flex; align-items:center; gap:12px;
+  border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;
+  background:rgba(10,10,15,.95);
+}
+#community-topbar h2 { font-size:20px; font-weight:700; }
+#community-topbar .spacer { flex:1; }
+.sort-btn {
+  padding:6px 16px; border-radius:16px; border:1px solid rgba(255,255,255,.15);
+  background:transparent; color:var(--text); cursor:pointer; font-size:13px;
+  font-family:inherit; transition:all .2s;
+}
+.sort-btn.active { background:var(--accent); border-color:var(--accent); }
+
+#community-grid {
+  flex:1; overflow-y:auto; padding:20px;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:16px; align-content:start;
+}
+.community-card {
+  background:var(--card-bg); border-radius:var(--radius); overflow:hidden;
+  border:1px solid rgba(255,255,255,.06); cursor:pointer; transition:all .2s;
+}
+.community-card:hover { transform:translateY(-3px); border-color:var(--accent2); box-shadow:0 8px 24px rgba(0,0,0,.4); }
+.community-card img { width:100%; height:180px; object-fit:cover; }
+.community-card .card-body { padding:14px; }
+.community-card .card-prompt { font-size:12px; color:var(--text2); line-height:1.5;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:8px; }
+.community-card .card-meta { display:flex; align-items:center; justify-content:space-between; font-size:13px; }
+.community-card .card-likes { color:var(--accent2); font-weight:600; }
+.community-card .card-author { color:var(--text2); font-size:12px; }
+
+.community-empty { text-align:center; padding:60px 20px; color:var(--text2); grid-column:1/-1; }
+.community-empty .empty-icon { font-size:56px; margin-bottom:12px; }
+
+/* Community pano overlay */
+#community-pano-overlay {
+  position:fixed; inset:0; z-index:70; background:#000;
+  display:none; flex-direction:column;
+}
+#community-pano-overlay.show { display:flex; }
+#comm-pano-topbar {
+  padding:14px 20px; display:flex; align-items:center; gap:12px;
+  background:rgba(0,0,0,.6); z-index:2; flex-shrink:0;
+}
+#comm-pano-topbar h3 { font-size:15px; flex:1; }
+#comm-pano-canvas { flex:1; cursor:grab; }
+#comm-pano-canvas:active { cursor:grabbing; }
+#comm-pano-actions {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%); z-index:5;
+  display:flex; gap:8px;
+}
+.comm-action-btn {
+  width:44px; height:44px; border-radius:50%; border:none;
+  background:rgba(0,0,0,.45); backdrop-filter:blur(8px); color:#fff;
+  cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center;
+  transition:all .2s;
+}
+.comm-action-btn:hover { background:rgba(0,0,0,.7); }
+.comm-action-btn.liked { color:#ff3b6e; }
+.comm-action-btn .like-count { font-size:11px; margin-left:2px; }
+
+/* Responsive */
+@media (max-width:700px) {
+  :root { --sidebar-w:100vw; --minimap-w:150px; --minimap-h:120px; }
+  .btn-group { flex-direction:column; align-items:center; }
+  .opt-grid { grid-template-columns:1fr 1fr; }
+  #mode-toggle { top:52px; }
+  .mode-btn { padding:8px 16px; font-size:13px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════ WELCOME PAGE ════ -->
+<div id="page-welcome" class="page active">
+  <h1>你的清华SIGS</h1>
+  <p class="tagline">探索校园，用AI重新设计你的视角<br>Explore campus, redesign your perspective with AI</p>
+  <div class="btn-group">
+    <button class="btn btn-primary" onclick="navigate('map')">开始游戏</button>
+    <button class="btn btn-outline" onclick="alert('引导教程即将上线！Tutorial coming soon!')">引导教程</button>
+    <button class="btn btn-outline" onclick="toggleSettings()">设置 Settings</button>
+  </div>
+</div>
+
+<!-- ════ SETTINGS OVERLAY ════ -->
+<div id="settings-overlay" onclick="if(event.target===this) toggleSettings()">
+  <div class="settings-panel" onclick="event.stopPropagation()">
+    <h2>设置 / Settings</h2>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:12px;">语言 / Language</p>
+    <label class="lang-option selected" id="lang-cn" onclick="setLang('cn')">
+      <input type="radio" name="lang" value="cn" checked> 🇨🇳 中文
+    </label>
+    <label class="lang-option" id="lang-en" onclick="setLang('en')">
+      <input type="radio" name="lang" value="en"> 🇺🇸 English
+    </label>
+    <button class="btn btn-outline btn-sm" style="margin-top:16px;width:100%;" onclick="toggleSettings()">关闭 / Close</button>
+  </div>
+</div>
+
+<!-- ════ MAP PAGE ════ -->
+<div id="page-map" class="page">
+  <div id="map-wrap">
+    <div id="map-main"></div>
+  </div>
+
+</div>
+
+<!-- ════ COMMUNITY PAGE ════ -->
+<div id="page-community" class="page">
+  <div id="community-topbar">
+    <h2>设计社区</h2>
+    <span class="spacer"></span>
+    <button class="sort-btn active" id="sort-hot" onclick="setSort('hot')">热门</button>
+    <button class="sort-btn" id="sort-new" onclick="setSort('new')">最新</button>
+    <button class="btn btn-outline btn-sm" onclick="navigate('map')">← 返回地图</button>
+  </div>
+  <div id="community-grid"></div>
+</div>
+
+<!-- Community Panorama Overlay -->
+<div id="community-pano-overlay">
+  <div id="comm-pano-topbar">
+    <h3 id="comm-pano-title"></h3>
+    <span id="comm-pano-likes" style="color:var(--accent2);font-weight:600;"></span>
+    <button class="btn btn-outline btn-sm" onclick="closeCommunityPano()">返回社区</button>
+  </div>
+  <div id="comm-pano-canvas"></div>
+  <div id="comm-pano-actions">
+    <button class="comm-action-btn" id="comm-like-btn" onclick="toggleLike()">❤️</button>
+    <button class="comm-action-btn" id="comm-auto-btn" onclick="toggleCommAuto()">⟳</button>
+    <button class="comm-action-btn" id="comm-reset-btn" onclick="resetCommView()">⌂</button>
+  </div>
+</div>
+
+<!-- ════ GLOBAL UI (outside page containers) ════ -->
+<div id="topbar">
+  <h2>清华大学深圳国际研究生院</h2>
+  <span class="badge">校园实景</span>
+  <span class="count" id="point-count"></span>
+  <button class="topbar-btn" onclick="navigate('welcome')">← 退出</button>
+  <button class="topbar-btn" id="community-nav-btn" onclick="navigate('community')">社区</button>
+</div>
+<div id="mode-toggle">
+  <button class="mode-btn active" id="mode-explore" onclick="setMode('explore')">漫游模式</button>
+  <button class="mode-btn" id="mode-design" onclick="setMode('design')">设计编辑模式</button>
+</div>
+
+<!-- ════ PANORAMA OVERLAYS (outside page containers) ════ -->
+<div id="pano-layer">
+  <div id="pano-canvas-wrap"></div>
+  <div id="pano-id-tag"></div>
+  <div id="pano-hint">🖱 拖拽旋转 | 滚轮缩放</div>
+</div>
+<div id="pano-controls">
+  <button class="pano-btn active" id="btn-auto" title="自动旋转">⟳</button>
+  <button class="pano-btn" id="btn-zoom-in">+</button>
+  <button class="pano-btn" id="btn-zoom-out">−</button>
+  <button class="pano-btn" id="btn-reset">⌂</button>
+</div>
+<button id="pano-close-btn" onclick="closePano()" title="返回地图">&times;</button>
+<div id="minimap"><div id="minimap-label">点击返回地图</div></div>
+<div id="pano-loading"><div class="pano-spinner"></div><span id="pano-loading-text">加载全景图...</span></div>
+
+<div id="agent-sidebar">
+  <div id="agent-header">
+    <h3>🤖 AI 设计助手</h3>
+    <button class="pano-btn" onclick="closeAgentSidebar()" style="position:static;">&times;</button>
+  </div>
+  <div id="agent-body">
+    <div id="agent-round-area">
+      <div class="agent-round-label" id="agent-round-label">第 1/4 步</div>
+      <div class="agent-round-title" id="agent-round-title">选择风格</div>
+      <div class="opt-grid" id="agent-options"></div>
+    </div>
+    <div id="prompt-preview"><strong>提示词预览：</strong><br><span id="prompt-text">尚未选择...</span></div>
+    <label style="font-size:12px;color:var(--text2);">系统提示词（可编辑）</label>
+    <textarea id="system-prompt-input" placeholder="系统提示词..."></textarea>
+    <button class="btn btn-primary" id="agent-generate-btn" disabled onclick="startGeneration()">生成设计</button>
+    <div id="gen-overlay">
+      <div class="gen-ring"></div>
+      <div class="gen-timer" id="gen-timer">0s</div>
+      <div class="gen-prompt-preview" id="gen-prompt-disp"></div>
+      <button class="btn btn-outline btn-sm" id="gen-cancel-btn" onclick="cancelGeneration()" style="margin-top:8px;">取消</button>
+    </div>
+    <div id="gen-result-actions" style="display:none;margin-top:16px;text-align:center;">
+      <p style="color:var(--accent2);font-weight:600;margin-bottom:12px;">✅ 生成完成！</p>
+      <button class="btn btn-primary btn-sm" onclick="editMore()" style="width:100%;margin-bottom:8px;">继续修改</button>
+      <button class="btn btn-outline btn-sm" onclick="shareToCommunity()" style="width:100%;">分享到社区</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ═══════════════════════════════════════
+//  i18n
+// ═══════════════════════════════════════
+const I18N = {
+cn: {
+  welcome_title:"你的清华SIGS", welcome_tagline:"探索校园，用AI重新设计你的视角",
+  btn_start:"开始游戏", btn_tutorial:"引导教程", btn_settings:"设置 Settings",
+  settings_title:"设置 / Settings", settings_lang:"语言 / Language", settings_close:"关闭 / Close",
+  map_title:"清华大学深圳国际研究生院", map_badge:"校园实景", map_points:"{n} 个实景点",
+  mode_explore:"漫游模式", mode_design:"设计编辑模式",
+  pano_loading:"加载全景图...", pano_hint:"🖱 拖拽旋转 | 滚轮缩放",
+  agent_title:"AI 设计助手", agent_round:"第 {r}/4 步",
+  agent_style:"选择风格", agent_color:"选择色调", agent_elements:"选择元素", agent_atmosphere:"选择氛围",
+  agent_prompt_preview:"提示词预览：", agent_prompt_empty:"尚未选择...",
+  agent_sys_label:"系统提示词（可编辑）", agent_btn_generate:"生成设计",
+  agent_generating:"正在生成...", agent_cancel:"取消", agent_done:"✅ 生成完成！",
+  agent_edit_more:"继续修改", agent_share:"分享到社区",
+  share_upscaling:"正在4K超分处理...",
+  community_title:"设计社区", community_hot:"热门", community_new:"最新",
+  community_empty:"还没有设计作品，快去创作吧！", community_back:"← 返回地图",
+  community_view:"返回社区",
+  tutorial_soon:"引导教程即将上线！Tutorial coming soon!",
+},
+en: {
+  welcome_title:"Your Tsinghua SIGS", welcome_tagline:"Explore campus, redesign your perspective with AI",
+  btn_start:"Start", btn_tutorial:"Tutorial", btn_settings:"Settings",
+  settings_title:"Settings", settings_lang:"Language", settings_close:"Close",
+  map_title:"Tsinghua Shenzhen International Graduate School", map_badge:"Campus View", map_points:"{n} viewpoints",
+  mode_explore:"Explore", mode_design:"Design Edit",
+  pano_loading:"Loading panorama...", pano_hint:"🖱 Drag to rotate | Scroll to zoom",
+  agent_title:"AI Design Agent", agent_round:"Step {r}/4",
+  agent_style:"Choose Style", agent_color:"Choose Palette", agent_elements:"Choose Elements", agent_atmosphere:"Choose Atmosphere",
+  agent_prompt_preview:"Prompt Preview:", agent_prompt_empty:"Nothing selected yet...",
+  agent_sys_label:"System Prompt (editable)", agent_btn_generate:"Generate Design",
+  agent_generating:"Generating...", agent_cancel:"Cancel", agent_done:"✅ Generation Complete!",
+  agent_edit_more:"Edit More", agent_share:"Share to Community",
+  share_upscaling:"Upscaling to 4K...",
+  community_title:"Design Community", community_hot:"Hot", community_new:"New",
+  community_empty:"No designs yet. Start creating!", community_back:"← Back to Map",
+  community_view:"Back to Community",
+  tutorial_soon:"Tutorial coming soon!",
+}
+};
+
+function t(key, params={}) {
+  const lang = state.language === "en" ? "en" : "cn";
+  let text = I18N[lang]?.[key] || I18N.cn[key] || key;
+  Object.entries(params).forEach(([k,v])=>{ text = text.replace(`{${k}}`,v); });
+  return text;
+}
+
+// ═══════════════════════════════════════
+//  State & Persistence
+// ═══════════════════════════════════════
+const state = {
+  language: localStorage.getItem("sigs_language") || "cn",
+  route: "welcome", mode: "explore",
+  mapPoints: [], currentPoint: null,
+  designSelections: { style:null, color:null, elements:null, atmosphere:null },
+  designRound: 1, compiledPrompt: "", systemPrompt: "",
+  genTaskId: null, genTimer: null, genResult: null, pollingTimer: null,
+  communityPosts: JSON.parse(localStorage.getItem("sigs_community_posts")||"[]"),
+  userLikes: JSON.parse(localStorage.getItem("sigs_user_likes")||"{}"),
+  communitySort: "hot",
+  commPanoState: { lat:0, lon:0, fov:75, autoRotate:true, isDragging:false, prevMouse:{x:0,y:0} },
+};
+window.state = state;
+
+function savePosts() { localStorage.setItem("sigs_community_posts", JSON.stringify(state.communityPosts)); }
+function saveLikes() { localStorage.setItem("sigs_user_likes", JSON.stringify(state.userLikes)); }
+function saveLang() { localStorage.setItem("sigs_language", state.language); }
+
+// ═══════════════════════════════════════
+//  Router & Page Render
+// ═══════════════════════════════════════
+function navigate(route) {
+  state.route = route;
+  window.location.hash = route;
+  renderPage();
+}
+window.addEventListener("hashchange", () => {
+  const r = window.location.hash.replace("#","") || "welcome";
+  if (state.route !== r) { state.route = r; renderPage(); }
+});
+
+function renderPage() {
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  const page = document.getElementById("page-"+state.route);
+  if (page) page.classList.add("active");
+
+  // Welcome text
+  document.querySelector("#page-welcome h1").textContent = t("welcome_title");
+  document.querySelector("#page-welcome .tagline").innerHTML = t("welcome_tagline");
+  document.querySelector("#page-welcome .btn-group").children[0].textContent = t("btn_start");
+  document.querySelector("#page-welcome .btn-group").children[1].textContent = t("btn_tutorial");
+  document.querySelector("#page-welcome .btn-group").children[2].textContent = t("btn_settings");
+
+  // Map page
+  document.querySelector("#topbar h2").textContent = t("map_title");
+  document.querySelector("#topbar .badge").textContent = t("map_badge");
+  document.querySelector("#mode-explore").textContent = t("mode_explore");
+  document.querySelector("#mode-design").textContent = t("mode_design");
+  document.querySelector("#pano-hint").textContent = t("pano_hint");
+  document.querySelector("#pano-loading-text").textContent = t("pano_loading");
+  document.querySelector("#agent-header h3").textContent = "🤖 "+t("agent_title");
+  document.querySelector("#agent-round-label").textContent = t("agent_round",{r:state.designRound});
+  document.querySelector("#agent-generate-btn").textContent = t("agent_btn_generate");
+  document.querySelector("#gen-cancel-btn").textContent = t("agent_cancel");
+  document.querySelector("#system-prompt-input").previousElementSibling.textContent = t("agent_sys_label");
+
+  // Community page
+  document.querySelector("#community-topbar h2").textContent = t("community_title");
+  document.querySelector("#sort-hot").textContent = t("community_hot");
+  document.querySelector("#sort-new").textContent = t("community_new");
+
+  // Show/hide global UI based on route
+  const topbar = document.getElementById("topbar");
+  const modeToggle = document.getElementById("mode-toggle");
+  if (state.route === "map") {
+    topbar.style.display = "flex";
+    modeToggle.style.display = "none"; // shown when panorama opens
+    initMapPage();
+  } else {
+    topbar.style.display = "none";
+    modeToggle.style.display = "none";
+  }
+  if (state.route === "community") renderCommunity();
+}
+
+// ═══════════════════════════════════════
+//  Settings
+// ═══════════════════════════════════════
+function toggleSettings() {
+  const ov = document.getElementById("settings-overlay");
+  ov.classList.toggle("show");
+  if (ov.classList.contains("show")) {
+    document.getElementById("lang-cn").classList.toggle("selected", state.language==="cn");
+    document.getElementById("lang-en").classList.toggle("selected", state.language==="en");
+    document.querySelector("#lang-cn input").checked = (state.language==="cn");
+    document.querySelector("#lang-en input").checked = (state.language==="en");
+  }
+}
+function setLang(lang) {
+  state.language = lang; saveLang();
+  document.getElementById("lang-cn").classList.toggle("selected", lang==="cn");
+  document.getElementById("lang-en").classList.toggle("selected", lang==="en");
+  document.querySelector("#lang-cn input").checked = (lang==="cn");
+  document.querySelector("#lang-en input").checked = (lang==="en");
+  renderPage();
+  if (state.route === "community") renderCommunity();
+}
+window.setLang = setLang;
+
+// ═══════════════════════════════════════
+//  Map Page
+// ═══════════════════════════════════════
+let mainMap = null, minimapInstance = null, minimapMarker = null, mapInit = false;
+window._minimapInstance = null; window._minimapMarker = null;
+let allPoints = [];
+window.allPoints = allPoints;
+
+function initMapPage() {
+  if (mapInit) { mainMap.invalidateSize(); mainMap.setView([22.595,113.965],16); return; }
+  mapInit = true;
+
+  // Wait for layout to ensure container has dimensions
+  requestAnimationFrame(() => {
+    mainMap = L.map("map-main", { zoomControl:true, attributionControl:true }).setView([22.595,113.965],16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution:"&copy; OpenStreetMap" }).addTo(mainMap);
+
+    // Minimap
+    minimapInstance = L.map("minimap", { zoomControl:false, attributionControl:false, dragging:true, scrollWheelZoom:false }).setView([22.595,113.965],15);
+    window._minimapInstance = minimapInstance;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(minimapInstance);
+    minimapInstance.on("click", closePano);
+
+    loadMapPoints();
+    console.log("Map initialized, loading points...");
+  });
+}
+
+async function loadMapPoints() {
+  const resp = await fetch("/api/map/points");
+  const pts = await resp.json();
+  state.mapPoints = pts;
+  allPoints = pts;
+  window.allPoints = pts;
+  document.getElementById("point-count").textContent = t("map_points",{n:pts.length});
+
+  pts.forEach(p => {
+    const m = L.circleMarker([p.lat,p.lon], { radius:7, fillColor:"#7c3aed", color:"#fff", weight:2, fillOpacity:.9 }).addTo(mainMap);
+    m.bindPopup(`<b>${p.id}</b><br><button style="margin-top:4px;padding:5px 14px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;" onclick="window._openPano('${p.image_url}','${p.id}',${p.lat},${p.lon})">${t("enter_pano")}</button>`);
+    m.on("click", () => { console.log("Marker clicked:", p.id); window.openPano(p.image_url, p.id, p.lat, p.lon); });
+  });
+  console.log(pts.length + " markers added to map");
+}
+
+function setMode(mode) {
+  state.mode = mode;
+  document.getElementById("mode-explore").classList.toggle("active", mode==="explore");
+  document.getElementById("mode-design").classList.toggle("active", mode==="design");
+  if (mode === "design" && state.currentPoint) {
+    document.getElementById("agent-sidebar").classList.add("open");
+    startAgent();
+  } else {
+    document.getElementById("agent-sidebar").classList.remove("open");
+  }
+}
+window.setMode = setMode;
+
+// ═══════════════════════════════════════
+//  Agent helpers
+// ═══════════════════════════════════════
+const ROUNDS = ["style","color","elements","atmosphere"];
+const ROUND_NAMES_CN = ["选择风格","选择色调","选择元素","选择氛围"];
+const ROUND_NAMES_EN = ["Choose Style","Choose Palette","Choose Elements","Choose Atmosphere"];
+const ROUND_KEYS = ["agent_style","agent_color","agent_elements","agent_atmosphere"];
+
+const OPTIONS = {
+style:[
+  {id:"modern",icon:"🏢",prompt:"modern architectural style with clean lines and glass facades"},
+  {id:"classical",icon:"🏛️",prompt:"classical architectural style with ornate columns and symmetry"},
+  {id:"future",icon:"🚀",prompt:"futuristic sci-fi style with holographic elements and sleek surfaces"},
+  {id:"nature",icon:"🌿",prompt:"natural overgrown style with abundant vegetation and organic forms"},
+  {id:"cyberpunk",icon:"🌃",prompt:"cyberpunk style with neon lights, rain, and dark atmosphere"},
+  {id:"minimal",icon:"⬜",prompt:"minimalist style with simple geometric forms and clean spaces"},
+  {id:"japanese",icon:"⛩️",prompt:"Japanese traditional style with wooden structures and zen gardens"},
+  {id:"industrial",icon:"🏭",prompt:"industrial style with exposed brick, steel beams, and concrete"},
+],
+color:[
+  {id:"warm",icon:"🟠",prompt:"warm color palette with oranges, reds, and golds"},
+  {id:"cool",icon:"🔵",prompt:"cool color palette with blues, teals, and purples"},
+  {id:"vivid",icon:"🌈",prompt:"vivid saturated colors with high contrast and bold hues"},
+  {id:"soft",icon:"🎀",prompt:"soft pastel color palette with gentle, muted tones"},
+  {id:"bw",icon:"⬛",prompt:"black and white monochrome with strong contrast"},
+  {id:"monochrome",icon:"🎨",prompt:"single-color monochrome palette with subtle tonal variations"},
+],
+elements:[
+  {id:"trees",icon:"🌳",prompt:"lush trees and abundant greenery"},
+  {id:"buildings",icon:"🏗️",prompt:"prominent architectural structures and buildings"},
+  {id:"water",icon:"💧",prompt:"water features like ponds, fountains, and streams"},
+  {id:"sculpture",icon:"🗿",prompt:"artistic sculptures and public art installations"},
+  {id:"lighting",icon:"💡",prompt:"dramatic lighting, lamps, and illumination effects"},
+  {id:"pathways",icon:"🛤️",prompt:"winding pathways, bridges, and walking trails"},
+  {id:"sky",icon:"☁️",prompt:"dramatic sky with interesting cloud formations"},
+  {id:"people",icon:"👤",prompt:"people engaged in various activities"},
+],
+atmosphere:[
+  {id:"serene",icon:"😌",prompt:"serene and peaceful atmosphere with calm energy"},
+  {id:"vibrant",icon:"🎉",prompt:"vibrant and energetic atmosphere with dynamic motion"},
+  {id:"mysterious",icon:"🔮",prompt:"mysterious and enigmatic atmosphere with fog and shadows"},
+  {id:"romantic",icon:"💕",prompt:"romantic and dreamy atmosphere with soft golden light"},
+  {id:"majestic",icon:"👑",prompt:"majestic and grand atmosphere with awe-inspiring scale"},
+  {id:"playful",icon:"🎈",prompt:"playful and whimsical atmosphere with bright colors"},
+  {id:"dramatic",icon:"🎭",prompt:"dramatic and cinematic atmosphere with strong lighting"},
+  {id:"ethereal",icon:"✨",prompt:"ethereal and otherworldly atmosphere with floating elements"},
+]
+};
+
+function getRoundName(roundIdx) {
+  return state.language==="en" ? ROUND_NAMES_EN[roundIdx] : ROUND_NAMES_CN[roundIdx];
+}
+
+function compilePrompt(selections) {
+  const parts = ["Transform this equirectangular 360-degree panorama photo."];
+  ["style","color","elements","atmosphere"].forEach(cat => {
+    const sel = selections[cat];
+    if (!sel) return;
+    const opt = OPTIONS[cat].find(o=>o.id===sel);
+    if (!opt) return;
+    const prefixes = {style:"Apply",color:"Use",elements:"Feature",atmosphere:"Create a"};
+    parts.push(`${prefixes[cat]} ${opt.prompt}.`);
+  });
+  parts.push("Preserve the 360-degree equirectangular projection format. Maintain the original scene layout and perspective.");
+  return parts.join(" ");
+}
+
+function startAgent() {
+  state.designSelections = { style:null, color:null, elements:null, atmosphere:null };
+  state.designRound = 1;
+  state.genResult = null;
+  document.getElementById("gen-result-actions").style.display = "none";
+  document.getElementById("gen-overlay").classList.remove("show");
+  document.getElementById("agent-generate-btn").disabled = true;
+  document.getElementById("agent-generate-btn").textContent = t("agent_btn_generate");
+  document.getElementById("prompt-text").textContent = t("agent_prompt_empty");
+  document.getElementById("system-prompt-input").value = "";
+  renderRound();
+}
+
+function renderRound() {
+  const r = state.designRound - 1;
+  if (r >= 4) {
+    document.getElementById("agent-generate-btn").disabled = false;
+    return;
+  }
+  const cat = ROUNDS[r];
+  document.getElementById("agent-round-label").textContent = t("agent_round",{r:state.designRound});
+  document.getElementById("agent-round-title").textContent = getRoundName(r);
+  const grid = document.getElementById("agent-options");
+  grid.innerHTML = "";
+  OPTIONS[cat].forEach(opt => {
+    const sel = state.designSelections[cat] === opt.id;
+    const card = document.createElement("div");
+    card.className = "opt-card" + (sel?" selected":"");
+    card.innerHTML = `<div class="icon">${opt.icon}</div><div class="name">${opt.id}</div>`;
+    card.onclick = ()=>selectOption(cat, opt.id);
+    grid.appendChild(card);
+  });
+}
+
+function selectOption(cat, optId) {
+  state.designSelections[cat] = optId;
+  if (state.designRound < 4) state.designRound++;
+  const prompt = compilePrompt(state.designSelections);
+  state.compiledPrompt = prompt;
+  state.systemPrompt = prompt;
+  document.getElementById("prompt-text").textContent = prompt;
+  document.getElementById("system-prompt-input").value = prompt;
+  renderRound();
+  if (state.designRound >= 4) {
+    // All rounds complete — re-render round 4 with selection highlighted
+    state.designRound = 4;
+    renderRound();
+    document.getElementById("agent-generate-btn").disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════
+//  Generation + Polling
+// ═══════════════════════════════════════
+async function startGeneration() {
+  const sysPrompt = document.getElementById("system-prompt-input").value.trim() || state.compiledPrompt;
+  const ov = document.getElementById("gen-overlay");
+  ov.classList.add("show");
+  document.getElementById("gen-prompt-disp").textContent = sysPrompt.substring(0,200)+"...";
+  document.getElementById("gen-result-actions").style.display = "none";
+
+  // Timer
+  let secs = 0;
+  state.genTimer = setInterval(()=>{ secs++; document.getElementById("gen-timer").textContent = secs+"s"; }, 1000);
+
+  // Fetch current panorama as blob, then submit
+  const formData = new FormData();
+  formData.append("prompt", sysPrompt);
+  formData.append("size", "auto");
+
+  if (state.currentPoint) {
+    try {
+      const blob = await fetch(state.currentPoint.image_url).then(r=>r.blob());
+      const file = new File([blob], "panorama.jpg", {type:"image/jpeg"});
+      formData.append("file", file);
+    } catch(e) { console.warn("Could not attach panorama image:", e); }
+  }
+
+  try {
+    const resp = await fetch("/api/generate", { method:"POST", body:formData });
+    const data = await resp.json();
+    if (data.error) { stopGenTimer(); ov.classList.remove("show"); alert(data.error); return; }
+    state.genTaskId = data.task_id;
+    startPolling();
+  } catch(e) {
+    stopGenTimer(); ov.classList.remove("show"); alert("Request failed: "+e.message);
+  }
+}
+
+function stopGenTimer() {
+  if (state.genTimer) { clearInterval(state.genTimer); state.genTimer = null; }
+}
+
+function cancelGeneration() {
+  stopGenTimer();
+  if (state.pollingTimer) { clearInterval(state.pollingTimer); state.pollingTimer = null; }
+  document.getElementById("gen-overlay").classList.remove("show");
+}
+
+function startPolling() {
+  if (state.pollingTimer) clearInterval(state.pollingTimer);
+  let attempts = 0;
+  state.pollingTimer = setInterval(async () => {
+    attempts++;
+    try {
+      const resp = await fetch(`/api/result/${state.genTaskId}`);
+      const data = await resp.json();
+      if (data.status === "success") {
+        clearInterval(state.pollingTimer); state.pollingTimer = null;
+        stopGenTimer();
+        document.getElementById("gen-overlay").classList.remove("show");
+        document.getElementById("gen-result-actions").style.display = "block";
+        state.genResult = { image_url: data.image_url, prompt: state.systemPrompt };
+        window._loadPanorama(data.image_url); // update the 3D viewer
+      } else if (data.status === "failed") {
+        clearInterval(state.pollingTimer); stopGenTimer();
+        document.getElementById("gen-overlay").classList.remove("show");
+        alert("Generation failed: "+(data.message||"unknown"));
+      }
+    } catch(e) { console.warn("Poll error:", e); }
+    if (attempts > 200) { clearInterval(state.pollingTimer); stopGenTimer(); alert("Polling timeout"); }
+  }, 5000);
+}
+
+function editMore() {
+  document.getElementById("gen-result-actions").style.display = "none";
+  startAgent();
+}
+
+async function shareToCommunity() {
+  if (!state.genResult) return;
+  stopGenTimer();
+  document.getElementById("gen-overlay").classList.add("show");
+  document.getElementById("gen-timer").textContent = "4K...";
+  document.getElementById("gen-prompt-disp").textContent = t("share_upscaling");
+  document.getElementById("gen-cancel-btn").style.display = "none";
+
+  let secs = 0;
+  state.genTimer = setInterval(()=>{ secs++; document.getElementById("gen-timer").textContent = "4K "+secs+"s"; }, 1000);
+
+  // Upscale to 4K
+  const fd = new FormData();
+  fd.append("prompt", "提升分辨率到4k，不要改变图像比例");
+  fd.append("resolution", "4K");
+  fd.append("aspect_ratio", "auto");
+  try {
+    const blob = await fetch(state.genResult.image_url).then(r=>r.blob());
+    fd.append("file", new File([blob], "gen.jpg", {type:"image/jpeg"}));
+  } catch(e) {}
+
+  try {
+    const resp = await fetch("/api/nano/generate", { method:"POST", body:fd });
+    const data = await resp.json();
+    if (data.error) { stopGenTimer(); document.getElementById("gen-overlay").classList.remove("show"); alert(data.error); return; }
+    // Poll nano result
+    const tid = data.task_id;
+    const poll = setInterval(async () => {
+      const r = await fetch(`/api/nano/result/${tid}`);
+      const d = await r.json();
+      if (d.status === "success") {
+        clearInterval(poll); stopGenTimer();
+        document.getElementById("gen-overlay").classList.remove("show");
+        document.getElementById("gen-cancel-btn").style.display = "";
+        // Save to community
+        const post = {
+          id: crypto.randomUUID(), prompt: state.genResult.prompt,
+          image_url: d.image_url || state.genResult.image_url,
+          original_pano: state.currentPoint?.image_url||"",
+          point_id: state.currentPoint?.id||"",
+          selections: {...state.designSelections},
+          timestamp: Date.now(), likes:0, author:"anonymous"
+        };
+        state.communityPosts.unshift(post);
+        savePosts();
+        navigate("community");
+      } else if (d.status === "failed") {
+        clearInterval(poll); stopGenTimer();
+        document.getElementById("gen-overlay").classList.remove("show");
+        document.getElementById("gen-cancel-btn").style.display = "";
+        alert("Upscale failed, sharing original. "+(d.message||""));
+        // Share original anyway
+        const post = {
+          id: crypto.randomUUID(), prompt: state.genResult.prompt,
+          image_url: state.genResult.image_url,
+          original_pano: state.currentPoint?.image_url||"",
+          point_id: state.currentPoint?.id||"",
+          selections: {...state.designSelections},
+          timestamp: Date.now(), likes:0, author:"anonymous"
+        };
+        state.communityPosts.unshift(post);
+        savePosts();
+        navigate("community");
+      }
+    }, 5000);
+  } catch(e) { stopGenTimer(); document.getElementById("gen-overlay").classList.remove("show"); alert("Share failed: "+e.message); }
+}
+
+// ═══════════════════════════════════════
+//  Community
+// ═══════════════════════════════════════
+function setSort(sort) {
+  state.communitySort = sort;
+  document.getElementById("sort-hot").classList.toggle("active", sort==="hot");
+  document.getElementById("sort-new").classList.toggle("active", sort==="new");
+  renderCommunity();
+}
+
+function renderCommunity() {
+  const grid = document.getElementById("community-grid");
+  let posts = [...state.communityPosts];
+  if (state.communitySort === "hot") posts.sort((a,b)=>b.likes-a.likes);
+  else posts.sort((a,b)=>b.timestamp-a.timestamp);
+
+  if (posts.length === 0) {
+    grid.innerHTML = `<div class="community-empty"><div class="empty-icon">🏜️</div><p>${t("community_empty")}</p></div>`;
+    return;
+  }
+  grid.innerHTML = posts.map(p => `
+    <div class="community-card" onclick="openCommunityPano('${p.id}')">
+      <img src="${p.image_url}" alt="design" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22180%22><rect fill=%22%231a1030%22 width=%22300%22 height=%22180%22/><text fill=%22%23aaa%22 x=%22150%22 y=%2295%22 text-anchor=%22middle%22 font-size=%2214%22>Image N/A</text></svg>'">
+      <div class="card-body">
+        <div class="card-prompt">${p.prompt||""}</div>
+        <div class="card-meta">
+          <span class="card-likes">❤️ ${p.likes||0}</span>
+          <span class="card-author">${p.author||"anonymous"}</span>
+        </div>
+      </div>
+    </div>
+  `).join("");
+}
+</script>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+
+// ═══════════════════════════════════════
+//  Main Panorama Viewer
+// ═══════════════════════════════════════
+let panoRenderer=null, panoScene=null, panoCamera=null, panoMat=null, panoAnimId=null;
+let navSprites=[], hoveredSprite=null;
+const panoState = { lat:0, lon:0, fov:75, autoRotate:true, isDragging:false, prevMouse:{x:0,y:0} };
+const raycaster = new THREE.Raycaster();
+const mouse2 = new THREE.Vector2();
+
+function initPano() {
+  if (panoRenderer) return;
+  panoScene = new THREE.Scene();
+  panoCamera = new THREE.PerspectiveCamera(75,2,.1,100);
+  panoCamera.position.set(0,0,0);
+  panoRenderer = new THREE.WebGLRenderer({antialias:true});
+  panoRenderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  panoRenderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.getElementById("pano-canvas-wrap").appendChild(panoRenderer.domElement);
+  const geo = new THREE.SphereGeometry(50,128,64);
+  panoMat = new THREE.MeshBasicMaterial({side:THREE.BackSide});
+  panoScene.add(new THREE.Mesh(geo, panoMat));
+  resizePano(); updatePanoCam(); animatePano();
+}
+
+function resizePano() {
+  if (!panoRenderer) return;
+  panoRenderer.setSize(innerWidth, innerHeight);
+  panoCamera.aspect = innerWidth/Math.max(innerHeight,1);
+  panoCamera.updateProjectionMatrix();
+}
+
+function updatePanoCam() {
+  if (!panoCamera) return;
+  const phi = Math.PI/2 - panoState.lat;
+  const x = 50*Math.sin(phi)*Math.sin(panoState.lon);
+  const y = 50*Math.cos(phi);
+  const z = 50*Math.sin(phi)*Math.cos(panoState.lon);
+  panoCamera.lookAt(x,y,z);
+  panoCamera.fov = panoState.fov;
+  panoCamera.updateProjectionMatrix();
+}
+
+function animatePano() {
+  panoAnimId = requestAnimationFrame(animatePano);
+  if (panoState.autoRotate && !panoState.isDragging && panoCamera) {
+    panoState.lon += 0.0015; updatePanoCam();
+  }
+  if (panoRenderer && panoScene) panoRenderer.render(panoScene, panoCamera);
+}
+
+function loadPanorama(url) {
+  initPano();
+  const loadingEl = document.getElementById("pano-loading");
+  const loadingText = document.getElementById("pano-loading-text");
+  loadingText.textContent = t("pano_loading");
+  loadingEl.classList.add("show");
+  const loader = new THREE.TextureLoader();
+  loader.load(url, (tex)=>{
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.repeat.x = -1;
+    panoMat.map = tex; panoMat.needsUpdate = true;
+    loadingEl.classList.remove("show");
+    const hint = document.getElementById("pano-hint");
+    hint.classList.add("show"); hint.classList.remove("fade");
+    setTimeout(()=>hint.classList.add("fade"),5000);
+  }, undefined, ()=>{
+    loadingText.textContent = "Load failed";
+  });
+}
+window._loadPanorama = loadPanorama;
+
+// Nav sprites
+function toRad(d){return d*Math.PI/180;}
+function toDeg(r){return r*180/Math.PI;}
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000,dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function bearing(lat1,lon1,lat2,lon2){
+  const dLon=toRad(lon2-lon1);
+  const y=Math.sin(dLon)*Math.cos(toRad(lat2));
+  const x=Math.cos(toRad(lat1))*Math.sin(toRad(lat2))-Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
+  return (toDeg(Math.atan2(y,x))+360)%360;
+}
+
+function createNavTex(dist){
+  const size=128,r=50;
+  const c=document.createElement("canvas");c.width=c.height=size;
+  const ctx=c.getContext("2d");
+  ctx.shadowColor="rgba(0,0,0,.5)";ctx.shadowBlur=8;
+  ctx.beginPath();ctx.arc(r+14,r+14,r+4,0,Math.PI*2);
+  ctx.fillStyle="rgba(255,255,255,.25)";ctx.fill();
+  ctx.shadowBlur=4;
+  ctx.beginPath();ctx.arc(r+14,r+14,r-4,0,Math.PI*2);
+  ctx.fillStyle="rgba(124,58,237,.85)";ctx.fill();
+  ctx.strokeStyle="#fff";ctx.lineWidth=3;ctx.stroke();
+  ctx.shadowBlur=0;ctx.fillStyle="#fff";ctx.font="bold 36px sans-serif";
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("→",r+14,r+14);
+  ctx.font="bold 18px sans-serif";ctx.fillText(Math.round(dist)+"m",r+14,r+50);
+  const tex=new THREE.CanvasTexture(c);tex.minFilter=THREE.LinearFilter;return tex;
+}
+function clearNavSprites(){navSprites.forEach(s=>{if(s.parent)s.parent.remove(s);if(s.material)s.material.dispose();});navSprites=[];}
+function buildNavSprites(nearby){
+  clearNavSprites();if(!panoScene)return;
+  const R=48;
+  nearby.forEach(p=>{
+    const tex=createNavTex(p.dist);
+    const mat=new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,depthWrite:false});
+    const sp=new THREE.Sprite(mat);sp.scale.set(8,8,1);
+    const elev=toRad(-25),az=toRad(p.brg);
+    sp.position.set(R*Math.cos(elev)*Math.sin(az),R*Math.sin(elev),R*Math.cos(elev)*Math.cos(az));
+    sp.userData=p;sp.renderOrder=1;panoScene.add(sp);navSprites.push(sp);
+  });
+}
+function getIntersectedSprite(e){
+  if(!panoCamera||navSprites.length===0)return null;
+  const rect=panoRenderer.domElement.getBoundingClientRect();
+  mouse2.x=((e.clientX-rect.left)/rect.width)*2-1;
+  mouse2.y=-((e.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(mouse2,panoCamera);
+  const hits=raycaster.intersectObjects(navSprites);
+  return hits.length>0?hits[0].object:null;
+}
+
+function syncMinimap(lat,lon){
+  const mm = window._minimapInstance; if(!mm)return;
+  mm.setView([lat,lon],16);
+  if(window._minimapMarker) mm.removeLayer(window._minimapMarker);
+  window._minimapMarker = L.circleMarker([lat,lon],{radius:6,fillColor:"#7c3aed",color:"#fff",weight:2,fillOpacity:1}).addTo(mm);
+}
+
+function openPano(url,id,lat,lon){
+  try {
+  console.log("openPano called:", id, url);
+  initPano();
+  window.state.currentPoint = {image_url:url,id,lat,lon};
+  document.getElementById("pano-layer").classList.add("active");
+  document.getElementById("pano-controls").classList.add("show");
+  document.getElementById("pano-close-btn").classList.add("show");
+  document.getElementById("minimap").classList.add("show");
+  document.getElementById("mode-toggle").style.display = "flex";
+  document.getElementById("topbar").classList.add("transparent");
+  document.getElementById("pano-id-tag").textContent = id||"";
+  document.getElementById("pano-id-tag").classList.add("show");
+  panoState.lat=0;panoState.lon=0;panoState.fov=75;panoState.autoRotate=true;
+  document.getElementById("btn-auto").classList.add("active");
+  updatePanoCam();loadPanorama(url);resizePano();
+  syncMinimap(lat||22.595,lon||113.965);
+
+  // Show agent sidebar if in design mode
+  if (window.state.mode === "design") {
+    document.getElementById("agent-sidebar").classList.add("open");
+    startAgent();
+  }
+
+  // Build nav sprites
+  if (window.allPoints && window.allPoints.length>0) {
+    const nearby = window.allPoints
+      .filter(p=>p.id!==(window.state.currentPoint?window.state.currentPoint.id:""))
+      .map(p=>({...p,dist:haversine(lat||22.595,lon||113.965,p.lat,p.lon),brg:bearing(lat||22.595,lon||113.965,p.lat,p.lon)}))
+      .filter(p=>p.dist<30&&p.dist>1).sort((a,b)=>a.dist-b.dist).slice(0,8);
+    if(nearby.length>0)buildNavSprites(nearby);
+  }
+  } catch(e) { console.error("openPano error:", e); alert("Panorama error: "+e.message); }
+}
+window.openPano = openPano;
+window._openPano = openPano;
+
+function closePano(){
+  document.getElementById("pano-layer").classList.remove("active");
+  document.getElementById("pano-controls").classList.remove("show");
+  document.getElementById("pano-close-btn").classList.remove("show");
+  document.getElementById("minimap").classList.remove("show");
+  document.getElementById("mode-toggle").style.display = "none";
+  document.getElementById("topbar").classList.remove("transparent");
+  document.getElementById("pano-id-tag").classList.remove("show");
+  document.getElementById("pano-hint").classList.remove("show","fade");
+  document.getElementById("pano-loading").classList.remove("show");
+  document.getElementById("agent-sidebar").classList.remove("open");
+  clearNavSprites();hoveredSprite=null;
+  window.state.currentPoint=null;
+  panoState.autoRotate=true;
+  document.getElementById("btn-auto").classList.add("active");
+  cancelGeneration();
+}
+window.closePano = closePano;
+
+// Mouse / touch
+document.getElementById("pano-canvas-wrap").addEventListener("mousedown",(e)=>{
+  if(e.button!==0)return;
+  const hit=getIntersectedSprite(e);if(hit)return;
+  panoState.isDragging=true;panoState.autoRotate=false;
+  document.getElementById("btn-auto").classList.remove("active");
+  panoState.prevMouse={x:e.clientX,y:e.clientY};
+});
+window.addEventListener("mousemove",(e)=>{
+  // Hover sprites
+  if(document.getElementById("pano-layer").classList.contains("active")){
+    const hit=getIntersectedSprite(e);
+    if(hoveredSprite&&hoveredSprite!==hit){hoveredSprite.material.opacity=.85;hoveredSprite.scale.set(8,8,1);}
+    if(hit){hit.material.opacity=1;hit.scale.set(10,10,1);}
+    hoveredSprite=hit;
+  }
+  if(!panoState.isDragging||!panoCamera)return;
+  const dx=e.clientX-panoState.prevMouse.x,dy=e.clientY-panoState.prevMouse.y;
+  panoState.lon+=dx*.003;panoState.lat+=dy*.003;
+  panoState.lat=Math.max(-Math.PI/2.2,Math.min(Math.PI/2.2,panoState.lat));
+  panoState.prevMouse={x:e.clientX,y:e.clientY};updatePanoCam();
+});
+window.addEventListener("mouseup",()=>{panoState.isDragging=false;});
+document.getElementById("pano-canvas-wrap").addEventListener("wheel",(e)=>{
+  e.preventDefault();
+  panoState.fov=Math.max(20,Math.min(120,panoState.fov+e.deltaY*.05));updatePanoCam();
+},{passive:false});
+document.getElementById("pano-canvas-wrap").addEventListener("click",(e)=>{
+  if(panoState.isDragging)return;
+  const hit=getIntersectedSprite(e);
+  if(hit&&hit.userData){const p=hit.userData;openPano(p.image_url,p.id,p.lat,p.lon);}
+});
+window.addEventListener("resize",resizePano);
+
+// Pano controls
+document.getElementById("btn-auto").addEventListener("click",function(){
+  panoState.autoRotate=!panoState.autoRotate;this.classList.toggle("active",panoState.autoRotate);
+});
+document.getElementById("btn-zoom-in").addEventListener("click",()=>{panoState.fov=Math.max(20,panoState.fov-10);updatePanoCam();});
+document.getElementById("btn-zoom-out").addEventListener("click",()=>{panoState.fov=Math.min(120,panoState.fov+10);updatePanoCam();});
+document.getElementById("btn-reset").addEventListener("click",()=>{
+  panoState.lat=0;panoState.lon=0;panoState.fov=75;panoState.autoRotate=true;
+  document.getElementById("btn-auto").classList.add("active");updatePanoCam();
+});
+
+// Touch
+document.getElementById("pano-canvas-wrap").addEventListener("touchstart",(e)=>{
+  if(e.touches.length===1){panoState.isDragging=true;panoState.autoRotate=false;
+  document.getElementById("btn-auto").classList.remove("active");panoState.prevMouse={x:e.touches[0].clientX,y:e.touches[0].clientY};}
+});
+document.getElementById("pano-canvas-wrap").addEventListener("touchmove",(e)=>{
+  if(!panoState.isDragging||e.touches.length!==1)return;e.preventDefault();
+  const dx=e.touches[0].clientX-panoState.prevMouse.x,dy=e.touches[0].clientY-panoState.prevMouse.y;
+  panoState.lon+=dx*.003;panoState.lat+=dy*.003;
+  panoState.lat=Math.max(-Math.PI/2.2,Math.min(Math.PI/2.2,panoState.lat));
+  panoState.prevMouse={x:e.touches[0].clientX,y:e.touches[0].clientY};updatePanoCam();
+},{passive:false});
+document.getElementById("pano-canvas-wrap").addEventListener("touchend",()=>{panoState.isDragging=false;});
+
+function closeAgentSidebar() {
+  document.getElementById("agent-sidebar").classList.remove("open");
+}
+window.closeAgentSidebar = closeAgentSidebar;
+
+// ═══════════════════════════════════════
+//  Community Panorama Viewer
+// ═══════════════════════════════════════
+let commRenderer=null,commScene=null,commCamera=null,commMat=null,commAnimId=null;
+const commState = window.state.commPanoState;
+const commCanvas = document.getElementById("comm-pano-canvas");
+
+function initCommPano(){
+  if(commRenderer)return;
+  commScene=new THREE.Scene();commCamera=new THREE.PerspectiveCamera(75,2,.1,100);commCamera.position.set(0,0,0);
+  commRenderer=new THREE.WebGLRenderer({antialias:true});
+  commRenderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  commRenderer.outputColorSpace=THREE.SRGBColorSpace;
+  commCanvas.appendChild(commRenderer.domElement);
+  commMat=new THREE.MeshBasicMaterial({side:THREE.BackSide});
+  commScene.add(new THREE.Mesh(new THREE.SphereGeometry(50,128,64),commMat));
+  resizeComm();updateCommCam();animateComm();
+}
+function resizeComm(){
+  if(!commRenderer)return;
+  const w=commCanvas.clientWidth,h=commCanvas.clientHeight;
+  commRenderer.setSize(w,h);commCamera.aspect=w/Math.max(h,1);commCamera.updateProjectionMatrix();
+}
+function updateCommCam(){
+  if(!commCamera)return;
+  const phi=Math.PI/2-commState.lat;
+  commCamera.lookAt(50*Math.sin(phi)*Math.sin(commState.lon),50*Math.cos(phi),50*Math.sin(phi)*Math.cos(commState.lon));
+  commCamera.fov=commState.fov;commCamera.updateProjectionMatrix();
+}
+function animateComm(){
+  commAnimId=requestAnimationFrame(animateComm);
+  if(commState.autoRotate&&!commState.isDragging&&commCamera){commState.lon+=0.0015;updateCommCam();}
+  if(commRenderer&&commScene)commRenderer.render(commScene,commCamera);
+}
+
+function openCommunityPano(postId){
+  const post = window.state.communityPosts.find(p=>p.id===postId);
+  if(!post)return;
+  initCommPano();resizeComm();
+  document.getElementById("community-pano-overlay").classList.add("show");
+  document.getElementById("comm-pano-title").textContent = post.point_id||"Community Design";
+  document.getElementById("comm-pano-likes").textContent = "❤️ "+(post.likes||0);
+  updateCommLikeBtn(postId);
+  commState.lat=0;commState.lon=0;commState.fov=75;commState.autoRotate=true;
+  updateCommCam();
+  const loader=new THREE.TextureLoader();
+  loader.load(post.image_url,(tex)=>{
+    tex.colorSpace=THREE.SRGBColorSpace;tex.wrapS=THREE.RepeatWrapping;tex.repeat.x=-1;
+    commMat.map=tex;commMat.needsUpdate=true;
+  });
+  window._commPostId=postId;
+}
+window.openCommunityPano = openCommunityPano;
+
+function closeCommunityPano(){
+  document.getElementById("community-pano-overlay").classList.remove("show");
+  window._commPostId=null;
+}
+window.closeCommunityPano = closeCommunityPano;
+
+function toggleLike(){
+  const pid=window._commPostId;if(!pid)return;
+  const post=window.state.communityPosts.find(p=>p.id===pid);if(!post)return;
+  if(window.state.userLikes[pid]){window.state.userLikes[pid]=false;post.likes=Math.max(0,post.likes-1);}
+  else{window.state.userLikes[pid]=true;post.likes++;}
+  savePosts();saveLikes();
+  document.getElementById("comm-pano-likes").textContent="❤️ "+(post.likes||0);
+  updateCommLikeBtn(pid);
+  renderCommunity();
+}
+window.toggleLike = toggleLike;
+
+function updateCommLikeBtn(pid){
+  const btn=document.getElementById("comm-like-btn");
+  if(window.state.userLikes[pid]){btn.classList.add("liked");btn.textContent="❤️";}
+  else{btn.classList.remove("liked");btn.textContent="🤍";}
+}
+
+function toggleCommAuto(){commState.autoRotate=!commState.autoRotate;}
+window.toggleCommAuto = toggleCommAuto;
+
+function resetCommView(){commState.lat=0;commState.lon=0;commState.fov=75;commState.autoRotate=true;updateCommCam();}
+window.resetCommView = resetCommView;
+
+// Community pano mouse/touch
+commCanvas.addEventListener("mousedown",(e)=>{
+  if(e.button!==0)return;
+  commState.isDragging=true;commState.autoRotate=false;commState.prevMouse={x:e.clientX,y:e.clientY};
+});
+window.addEventListener("mousemove",(e)=>{
+  if(!commState.isDragging||!commCamera)return;
+  const dx=e.clientX-commState.prevMouse.x,dy=e.clientY-commState.prevMouse.y;
+  commState.lon+=dx*.003;commState.lat+=dy*.003;
+  commState.lat=Math.max(-Math.PI/2.2,Math.min(Math.PI/2.2,commState.lat));
+  commState.prevMouse={x:e.clientX,y:e.clientY};updateCommCam();
+});
+window.addEventListener("mouseup",()=>{commState.isDragging=false;});
+commCanvas.addEventListener("wheel",(e)=>{
+  e.preventDefault();commState.fov=Math.max(20,Math.min(120,commState.fov+e.deltaY*.05));updateCommCam();
+},{passive:false});
+commCanvas.addEventListener("contextmenu",(e)=>e.preventDefault());
+
+// Start
+if (window.location.hash) {
+  const r = window.location.hash.replace("#","") || "welcome";
+  window.state.route = r;
+}
+renderPage();
+</script>

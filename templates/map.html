@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>清华大学深圳国际研究生院 - 校园实景</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --accent: #7c3aed;
+            --minimap-w: 260px;
+            --minimap-h: 200px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+        /* ── Default: full map ─────────── */
+        #map-wrap { position: fixed; inset: 0; z-index: 1; transition: opacity 0.4s; }
+        #map-wrap.dim { opacity: 0; pointer-events: none; }
+        #map { position: absolute; inset: 0; }
+
+        /* ── Panorama fullscreen layer ─── */
+        #pano-layer {
+            position: fixed; inset: 0; z-index: 0; background: #000;
+            opacity: 0; pointer-events: none; transition: opacity 0.5s;
+        }
+        #pano-layer.active { opacity: 1; pointer-events: auto; }
+        #pano-canvas-wrap { width: 100%; height: 100%; cursor: grab; }
+        #pano-canvas-wrap:active { cursor: grabbing; }
+
+        /* ── Top bar ───────────────────── */
+        #topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 30;
+            background: rgba(255,255,255,0.92); backdrop-filter: blur(10px);
+            padding: 10px 20px; display: flex; align-items: center; gap: 12px;
+            border-bottom: 1px solid rgba(0,0,0,0.08); transition: background 0.4s;
+        }
+        #topbar.transparent {
+            background: rgba(0,0,0,0.4); border-bottom-color: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        #topbar.transparent .count { color: rgba(255,255,255,0.7); }
+        #topbar h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+        #topbar .badge {
+            font-size: 11px; background: var(--accent); color: #fff;
+            padding: 3px 8px; border-radius: 12px; font-weight: 600;
+        }
+        #topbar .count { font-size: 13px; color: #666; margin-left: auto; transition: color 0.4s; }
+        #topbar .close-pano {
+            display: none; width: 32px; height: 32px; border-radius: 50%; border: none;
+            background: rgba(255,255,255,0.15); color: #fff; cursor: pointer;
+            font-size: 18px; align-items: center; justify-content: center; margin-left: 8px;
+        }
+        #topbar .close-pano.show { display: flex; }
+
+        /* ── Minimap (bottom-left) ─────── */
+        #minimap {
+            position: fixed; bottom: 20px; left: 20px; z-index: 25;
+            width: var(--minimap-w); height: var(--minimap-h);
+            border-radius: 12px; overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.9);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+            opacity: 0; transform: translateY(10px);
+            transition: opacity 0.4s, transform 0.4s;
+            pointer-events: none;
+        }
+        #minimap.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        #minimap .leaflet-control-zoom { display: none; }
+        #minimap .leaflet-control-attribution { display: none; }
+        #minimap-label {
+            position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+            z-index: 5; background: rgba(0,0,0,0.6); color: #fff;
+            padding: 2px 10px; border-radius: 10px; font-size: 11px;
+            font-weight: 600; pointer-events: none; white-space: nowrap;
+        }
+
+        /* ── Pano controls ─────────────── */
+        #pano-controls {
+            position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+            z-index: 25; display: flex; gap: 8px;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s;
+        }
+        #pano-controls.show { opacity: 1; pointer-events: auto; }
+        .pano-btn {
+            width: 40px; height: 40px; border-radius: 50%; border: none;
+            background: rgba(0,0,0,0.45); backdrop-filter: blur(8px);
+            color: #fff; cursor: pointer; font-size: 18px;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .pano-btn:hover { background: rgba(0,0,0,0.65); }
+        .pano-btn.active { background: var(--accent); }
+
+        #pano-loading {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 26; display: flex; align-items: center; gap: 10px;
+            color: rgba(255,255,255,0.7); font-size: 14px;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #pano-loading.show { opacity: 1; }
+        .pano-spinner {
+            width: 28px; height: 28px; border: 3px solid rgba(255,255,255,0.15);
+            border-top: 3px solid var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #pano-hint {
+            position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+            z-index: 25; color: rgba(255,255,255,0.5); font-size: 13px;
+            pointer-events: none; transition: opacity 0.6s;
+        }
+        #pano-hint.show { opacity: 1; }
+        #pano-hint.fade { opacity: 0; }
+
+        #pano-id-tag {
+            position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+            z-index: 25; color: rgba(255,255,255,0.8); font-size: 13px;
+            font-weight: 600; pointer-events: none;
+            opacity: 0; transition: opacity 0.4s;
+        }
+        #pano-id-tag.show { opacity: 1; }
+
+        @media (max-width: 600px) {
+            :root { --minimap-w: 180px; --minimap-h: 140px; }
+            #topbar h1 { font-size: 15px; }
+            #minimap { bottom: 12px; left: 12px; }
+            #pano-controls { bottom: 16px; gap: 4px; }
+            .pano-btn { width: 36px; height: 36px; font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Full map (default visible) -->
+    <div id="map-wrap"><div id="map"></div></div>
+
+    <!-- Panorama fullscreen (hidden by default) -->
+    <div id="pano-layer">
+        <div id="pano-canvas-wrap"></div>
+        <div id="pano-id-tag"></div>
+        <div id="pano-hint">🖱 拖拽旋转 &nbsp;|&nbsp; 滚轮缩放</div>
+    </div>
+
+    <!-- Top bar -->
+    <div id="topbar">
+        <h1>清华大学深圳国际研究生院</h1>
+        <span class="badge">校园实景</span>
+        <span class="count" id="point-count"></span>
+        <button class="close-pano" id="close-pano-btn" title="返回地图">&times;</button>
+    </div>
+
+    <!-- Minimap (bottom-left, visible in pano mode) -->
+    <div id="minimap"><div id="minimap-label">点击返回地图</div></div>
+
+    <!-- Pano controls -->
+    <div id="pano-controls">
+        <button class="pano-btn active" id="btn-auto" title="自动旋转">⟳</button>
+        <button class="pano-btn" id="btn-zoom-in" title="放大">+</button>
+        <button class="pano-btn" id="btn-zoom-out" title="缩小">−</button>
+        <button class="pano-btn" id="btn-reset" title="重置视角">⌂</button>
+    </div>
+
+    <!-- Loading -->
+    <div id="pano-loading"><div class="pano-spinner"></div><span>加载全景图...</span></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+    <script type="module">
+    import * as THREE from "three";
+
+    // ── DOM refs ────────────────────────
+    const $ = id => document.getElementById(id);
+    const mapWrap = $("map-wrap"), panoLayer = $("pano-layer");
+    const panoCanvasWrap = $("pano-canvas-wrap");
+    const minimapEl = $("minimap"), topbar = $("topbar");
+    const closeBtn = $("close-pano-btn"), controlsEl = $("pano-controls");
+    const loadingEl = $("pano-loading"), hintEl = $("pano-hint");
+    const idTag = $("pano-id-tag"), btnAuto = $("btn-auto");
+
+    // ── Main map ────────────────────────
+    const mainMap = L.map("map", { zoomControl: true, attributionControl: true })
+        .setView([22.595, 113.965], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap"
+    }).addTo(mainMap);
+
+    // ── Minimap (separate Leaflet instance) ──
+    const minimap = L.map("minimap", {
+        zoomControl: false, attributionControl: false,
+        dragging: true, scrollWheelZoom: false,
+        doubleClickZoom: false, touchZoom: true
+    }).setView([22.595, 113.965], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {}).addTo(minimap);
+    let minimapMarker = null;
+
+    minimap.on("click", closePano);
+
+    function syncMinimap(lat, lon) {
+        minimap.setView([lat, lon], 16);
+        if (minimapMarker) minimap.removeLayer(minimapMarker);
+        minimapMarker = L.circleMarker([lat, lon], {
+            radius: 6, fillColor: "#7c3aed", color: "#fff", weight: 2, fillOpacity: 1
+        }).addTo(minimap);
+    }
+
+    // ── Panorama state ──────────────────
+    const state = { lat: 0, lon: 0, fov: 75, autoRotate: true, isDragging: false, prevMouse: { x:0, y:0 } };
+
+    // ── Three.js ────────────────────────
+    let panoRenderer = null, panoScene = null, panoCamera = null, panoMat = null, panoAnimId = null;
+
+    function initPano() {
+        if (panoRenderer) return;
+        panoScene = new THREE.Scene();
+        panoCamera = new THREE.PerspectiveCamera(75, 2, 0.1, 100);
+        panoCamera.position.set(0, 0, 0);
+        panoRenderer = new THREE.WebGLRenderer({ antialias: true });
+        panoRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        panoRenderer.outputColorSpace = THREE.SRGBColorSpace;
+        panoCanvasWrap.appendChild(panoRenderer.domElement);
+        const geo = new THREE.SphereGeometry(50, 128, 64);
+        panoMat = new THREE.MeshBasicMaterial({ side: THREE.BackSide });
+        panoScene.add(new THREE.Mesh(geo, panoMat));
+        resizePano();
+        updatePanoCam();
+        animatePano();
+    }
+
+    function resizePano() {
+        if (!panoRenderer) return;
+        panoRenderer.setSize(window.innerWidth, window.innerHeight);
+        panoCamera.aspect = window.innerWidth / Math.max(window.innerHeight, 1);
+        panoCamera.updateProjectionMatrix();
+    }
+
+    function updatePanoCam() {
+        if (!panoCamera) return;
+        const phi = Math.PI / 2 - state.lat;
+        const x = 50 * Math.sin(phi) * Math.sin(state.lon);
+        const y = 50 * Math.cos(phi);
+        const z = 50 * Math.sin(phi) * Math.cos(state.lon);
+        panoCamera.lookAt(x, y, z);
+        panoCamera.fov = state.fov;
+        panoCamera.updateProjectionMatrix();
+    }
+
+    function animatePano() {
+        panoAnimId = requestAnimationFrame(animatePano);
+        if (state.autoRotate && !state.isDragging && panoCamera) {
+            state.lon += 0.0015; updatePanoCam();
+        }
+        if (panoRenderer && panoScene) panoRenderer.render(panoScene, panoCamera);
+    }
+
+    function loadPanorama(url) {
+        initPano();
+        loadingEl.classList.add("show");
+        const loader = new THREE.TextureLoader();
+        loader.load(url, (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.repeat.x = -1;
+            panoMat.map = tex;
+            panoMat.needsUpdate = true;
+            loadingEl.classList.remove("show");
+            hintEl.classList.add("show");
+            hintEl.classList.remove("fade");
+            setTimeout(() => hintEl.classList.add("fade"), 5000);
+        }, undefined, () => {
+            loadingEl.innerHTML = '<span style="color:#ff3b30">加载失败</span>';
+            loadingEl.classList.add("show");
+        });
+    }
+
+    // ── Open / Close panorama ───────────
+    function openPano(url, id, lat, lon) {
+        initPano();
+        currentPoint = { id, lat, lon, image_url: url };
+        panoLayer.classList.add("active");
+        mapWrap.classList.add("dim");
+        minimapEl.classList.add("show");
+        controlsEl.classList.add("show");
+        closeBtn.classList.add("show");
+        topbar.classList.add("transparent");
+        idTag.textContent = id || "";
+        idTag.classList.add("show");
+        state.lat = 0; state.lon = 0; state.fov = 75; state.autoRotate = true;
+        btnAuto.classList.add("active");
+        updatePanoCam();
+        loadPanorama(url);
+        resizePano();
+        syncMinimap(lat || 22.595, lon || 113.965);
+        // Show 3D nav sprites
+        const nearby = findNearby(lat || 22.595, lon || 113.965);
+        if (nearby.length > 0) buildNavSprites(nearby);
+    }
+
+    function closePano() {
+        panoLayer.classList.remove("active");
+        mapWrap.classList.remove("dim");
+        minimapEl.classList.remove("show");
+        controlsEl.classList.remove("show");
+        closeBtn.classList.remove("show");
+        topbar.classList.remove("transparent");
+        idTag.classList.remove("show");
+        hintEl.classList.remove("show");
+        loadingEl.classList.remove("show");
+        clearNavSprites();
+        hoveredSprite = null;
+        currentPoint = null;
+        state.autoRotate = true;
+        btnAuto.classList.add("active");
+    }
+
+    closeBtn.addEventListener("click", closePano);
+    window.openPano = openPano;
+    window.closePano = closePano;
+
+    // ── Panorama mouse / touch ──────────
+    panoCanvasWrap.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+        const hit = getIntersectedSprite(e);
+        if (hit) return; // let click handle nav
+        state.isDragging = true; state.autoRotate = false;
+        btnAuto.classList.remove("active");
+        state.prevMouse = { x: e.clientX, y: e.clientY };
+    });
+    window.addEventListener("mousemove", (e) => {
+        if (!state.isDragging || !panoCamera) return;
+        const dx = e.clientX - state.prevMouse.x, dy = e.clientY - state.prevMouse.y;
+        state.lon += dx * 0.003; state.lat += dy * 0.003;
+        state.lat = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, state.lat));
+        state.prevMouse = { x: e.clientX, y: e.clientY };
+        updatePanoCam();
+    });
+    window.addEventListener("mouseup", () => { state.isDragging = false; });
+    panoCanvasWrap.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        state.fov = Math.max(20, Math.min(120, state.fov + e.deltaY * 0.05));
+        updatePanoCam();
+    }, { passive: false });
+    window.addEventListener("resize", resizePano);
+
+    panoCanvasWrap.addEventListener("touchstart", (e) => {
+        if (e.touches.length === 1) {
+            state.isDragging = true; state.autoRotate = false;
+            btnAuto.classList.remove("active");
+            state.prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+    });
+    panoCanvasWrap.addEventListener("touchmove", (e) => {
+        if (!state.isDragging || e.touches.length !== 1) return;
+        e.preventDefault();
+        const dx = e.touches[0].clientX - state.prevMouse.x;
+        const dy = e.touches[0].clientY - state.prevMouse.y;
+        state.lon += dx * 0.003; state.lat += dy * 0.003;
+        state.lat = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, state.lat));
+        state.prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        updatePanoCam();
+    }, { passive: false });
+    panoCanvasWrap.addEventListener("touchend", () => { state.isDragging = false; });
+
+    // ── Controls ────────────────────────
+    btnAuto.addEventListener("click", function() {
+        state.autoRotate = !state.autoRotate;
+        this.classList.toggle("active", state.autoRotate);
+    });
+    $("btn-zoom-in").addEventListener("click", () => { state.fov = Math.max(20, state.fov - 10); updatePanoCam(); });
+    $("btn-zoom-out").addEventListener("click", () => { state.fov = Math.min(120, state.fov + 10); updatePanoCam(); });
+    $("btn-reset").addEventListener("click", () => {
+        state.lat = 0; state.lon = 0; state.fov = 75; state.autoRotate = true;
+        btnAuto.classList.add("active"); updatePanoCam();
+    });
+
+    // ── 3D nearby navigation sprites ──
+    const NEARBY_RADIUS = 30;
+    const allPoints = [];
+    let currentPoint = null;
+    let navSprites = [];
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let hoveredSprite = null;
+
+    function toRad(d) { return d * Math.PI / 180; }
+    function toDeg(r) { return r * 180 / Math.PI; }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function bearing(lat1, lon1, lat2, lon2) {
+        const dLon = toRad(lon2 - lon1);
+        const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+        const x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2)) - Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
+        return (toDeg(Math.atan2(y, x)) + 360) % 360;
+    }
+
+    function findNearby(lat, lon) {
+        return allPoints
+            .filter(p => p.id !== (currentPoint ? currentPoint.id : ""))
+            .map(p => ({ ...p, dist: haversine(lat, lon, p.lat, p.lon), brg: bearing(lat, lon, p.lat, p.lon) }))
+            .filter(p => p.dist < NEARBY_RADIUS && p.dist > 1)
+            .sort((a, b) => a.dist - b.dist)
+            .slice(0, 8);
+    }
+
+    function createNavSpriteTexture(dist) {
+        const size = 128, r = 50;
+        const c = document.createElement("canvas");
+        c.width = c.height = size;
+        const ctx = c.getContext("2d");
+        // Shadow
+        ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 8;
+        // Outer glow
+        ctx.beginPath(); ctx.arc(r+14, r+14, r+4, 0, Math.PI*2);
+        ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.fill();
+        // Main circle
+        ctx.shadowBlur = 4;
+        ctx.beginPath(); ctx.arc(r+14, r+14, r-4, 0, Math.PI*2);
+        ctx.fillStyle = "rgba(124,58,237,0.85)"; ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.stroke();
+        // Arrow
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#fff"; ctx.font = "bold 36px sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("→", r+14, r+14);
+        // Distance label
+        ctx.font = "bold 18px sans-serif";
+        ctx.fillText(Math.round(dist)+"m", r+14, r+50);
+        const tex = new THREE.CanvasTexture(c);
+        tex.minFilter = THREE.LinearFilter;
+        return tex;
+    }
+
+    function clearNavSprites() {
+        navSprites.forEach(s => { if (s.parent) s.parent.remove(s); if (s.material) s.material.dispose(); });
+        navSprites = [];
+    }
+
+    function buildNavSprites(nearby) {
+        clearNavSprites();
+        if (!panoScene) return;
+        const R = 48; // slightly inside sphere
+        nearby.forEach(p => {
+            const tex = createNavSpriteTexture(p.dist);
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(8, 8, 1);
+            // Place at bearing angle, at -25° elevation (near ground)
+            const elev = toRad(-25);
+            const az = toRad(p.brg);
+            sprite.position.set(
+                R * Math.cos(elev) * Math.sin(az),
+                R * Math.sin(elev),
+                R * Math.cos(elev) * Math.cos(az)
+            );
+            sprite.userData = p;
+            sprite.renderOrder = 1;
+            panoScene.add(sprite);
+            navSprites.push(sprite);
+        });
+    }
+
+    // Raycaster check for sprite hover/click
+    function getIntersectedSprite(event) {
+        if (!panoCamera || navSprites.length === 0) return null;
+        const rect = panoRenderer.domElement.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, panoCamera);
+        const hits = raycaster.intersectObjects(navSprites);
+        return hits.length > 0 ? hits[0].object : null;
+    }
+
+    // Mouse move for hover effect
+    panoCanvasWrap.addEventListener("mousemove", (e) => {
+        if (!panoLayer.classList.contains("active")) return;
+        const hit = getIntersectedSprite(e);
+        if (hoveredSprite && hoveredSprite !== hit) {
+            hoveredSprite.material.opacity = 0.85;
+            hoveredSprite.scale.set(8, 8, 1);
+        }
+        if (hit) {
+            hit.material.opacity = 1;
+            hit.scale.set(10, 10, 1);
+            panoCanvasWrap.style.cursor = "pointer";
+        } else {
+            panoCanvasWrap.style.cursor = state.isDragging ? "grabbing" : "grab";
+        }
+        hoveredSprite = hit;
+    });
+
+    // Click on nav sprite
+    panoCanvasWrap.addEventListener("click", (e) => {
+        if (state.isDragging) return;
+        const hit = getIntersectedSprite(e);
+        if (hit && hit.userData) {
+            const p = hit.userData;
+            openPano(p.image_url, p.id, p.lat, p.lon);
+        }
+    });
+
+    // ── Load points ────────────────────
+    async function loadPoints() {
+        const resp = await fetch("/api/map/points");
+        const points = await resp.json();
+        $("point-count").textContent = `${points.length} 个实景点`;
+
+        points.forEach(p => {
+            allPoints.push(p);
+            const marker = L.circleMarker([p.lat, p.lon], {
+                radius: 7, fillColor: "#7c3aed", color: "#fff", weight: 2, fillOpacity: 0.9
+            }).addTo(mainMap);
+
+            marker.bindPopup(`
+                <b>实景点</b><br>
+                <span style="font-size:12px;color:#666;">${p.id}</span><br>
+                <button style="margin-top:6px;padding:5px 14px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;" onclick="window.openPano('${p.image_url}','${p.id}',${p.lat},${p.lon})">进入实景 →</button>
+            `);
+
+            marker.on("click", () => openPano(p.image_url, p.id, p.lat, p.lon));
+        });
+    }
+
+    loadPoints();
+    console.log("校园实景地图就绪 — 点击紫色圆点进入360°全景");
+    </script>
+</body>
+</html>

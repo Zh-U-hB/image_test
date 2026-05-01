@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNG → JPG 转换测试</title>
+    <style>
+        :root {
+            --bg: #f5f5f7;
+            --card-bg: #ffffff;
+            --text: #1d1d1f;
+            --text-secondary: #6e6e73;
+            --accent: #1e78ff;
+            --accent-hover: #0056d6;
+            --border: #e0e0e5;
+            --success: #34c759;
+            --error: #ff3b30;
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg); color: var(--text); min-height: 100vh;
+        }
+        .header { text-align: center; padding: 40px 20px 20px; }
+        .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; }
+        .header p { color: var(--text-secondary); font-size: 15px; }
+        .header .nav { margin-top: 12px; font-size: 14px; }
+        .header .nav a { color: var(--accent); text-decoration: none; }
+        .container { max-width: 800px; margin: 0 auto; padding: 0 20px 40px; display: grid; gap: 20px; }
+        .card {
+            background: var(--card-bg); border-radius: var(--radius); padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .card-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+        .form-group { margin-bottom: 16px; }
+        .form-label {
+            display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+        }
+        input[type="url"], input[type="text"] {
+            width: 100%; border: 1px solid var(--border); border-radius: 8px;
+            padding: 10px 14px; font-size: 14px; font-family: inherit; color: var(--text);
+            background: var(--bg); outline: none; transition: border-color 0.2s;
+        }
+        input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(30,120,255,0.1); }
+
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 12px 28px; font-size: 15px; font-weight: 600; border: none;
+            border-radius: 8px; cursor: pointer; transition: background 0.2s, opacity 0.2s;
+        }
+        .btn-primary { background: var(--accent); color: #fff; width: 100%; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .status-bar {
+            display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+            border-radius: 8px; font-size: 14px;
+        }
+        .status-bar.loading { background: #f0f8ff; border: 1px solid #d0e4f7; }
+        .status-bar.success { background: #e8faf0; border-color: #c3e8d4; }
+        .status-bar.error { background: #fff0f0; border-color: #ffd6d6; }
+        .spinner {
+            width: 18px; height: 18px; border: 2px solid #e0e0e5;
+            border-top: 2px solid var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .result-section { display: none; }
+        .result-section.show { display: block; }
+        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+        @media (max-width: 600px) { .result-grid { grid-template-columns: 1fr; } }
+        .result-item { text-align: center; }
+        .result-item .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
+        .result-item img {
+            width: 100%; border-radius: 8px; max-height: 400px; object-fit: contain;
+            background: #f9f9f9; border: 1px solid var(--border);
+        }
+        .info-badge {
+            display: inline-block; padding: 4px 10px; border-radius: 20px;
+            font-size: 12px; font-weight: 600;
+        }
+        .info-badge.converted { background: #e8f5e9; color: #2e7d32; }
+        .info-badge.passthrough { background: #e3f2fd; color: #1565c0; }
+        .info-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>PNG → JPG 格式转换</h1>
+        <p>输入图片URL，自动将PNG转为JPG；已是JPG则原样返回</p>
+        <div class="nav"><a href="/">← 返回图生图工具</a></div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <div class="card-title"><span class="dot"></span>输入图片URL</div>
+            <div class="form-group">
+                <label class="form-label" for="image-url">图片地址</label>
+                <input type="url" id="image-url" placeholder="https://example.com/image.png">
+            </div>
+            <button class="btn btn-primary" id="convert-btn" onclick="doConvert()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+                </svg>
+                转换
+            </button>
+        </div>
+
+        <div id="status-area"></div>
+
+        <div class="card result-section" id="result-card">
+            <div class="card-title"><span class="dot"></span>转换结果</div>
+            <div class="info-tags" id="info-tags"></div>
+            <div class="result-grid">
+                <div class="result-item">
+                    <div class="label">原始图片</div>
+                    <img id="original-img" alt="原始图片">
+                </div>
+                <div class="result-item">
+                    <div class="label">转换结果 (JPG)</div>
+                    <img id="converted-img" alt="转换结果">
+                </div>
+            </div>
+            <button class="btn btn-primary" style="margin-top:16px;" onclick="downloadResult()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                下载JPG图片
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let resultUrl = null;
+
+        async function doConvert() {
+            const url = document.getElementById("image-url").value.trim();
+            if (!url) {
+                showStatus("请输入图片URL", "error");
+                return;
+            }
+
+            const btn = document.getElementById("convert-btn");
+            btn.disabled = true;
+            showStatus("正在下载并转换...", "loading");
+
+            try {
+                const resp = await fetch("/api/convert", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ url })
+                });
+                const data = await resp.json();
+                if (data.error) {
+                    showStatus(data.error, "error");
+                    btn.disabled = false;
+                    return;
+                }
+
+                document.getElementById("original-img").src = url;
+                document.getElementById("converted-img").src = data.image_url;
+                resultUrl = data.image_url;
+                document.getElementById("result-card").classList.add("show");
+
+                const tags = document.getElementById("info-tags");
+                if (data.converted) {
+                    showStatus(data.message + ` (${data.file_size_kb}KB)`, "success");
+                    tags.innerHTML = `<span class="info-badge converted">${data.original_format} → JPG</span>
+                        <span class="info-badge passthrough">${data.file_size_kb} KB</span>`;
+                } else {
+                    showStatus(data.message, "success");
+                    tags.innerHTML = `<span class="info-badge passthrough">已是JPG，原样返回</span>`;
+                }
+                btn.disabled = false;
+
+            } catch (err) {
+                showStatus("请求失败: " + err.message, "error");
+                btn.disabled = false;
+            }
+        }
+
+        function showStatus(msg, type) {
+            const cls = type === "error" ? "error" : (type === "success" ? "success" : "loading");
+            const spinner = type === "loading" ? '<div class="spinner"></div>' : '';
+            document.getElementById("status-area").innerHTML =
+                `<div class="status-bar ${cls}">${spinner}<span>${msg}</span></div>`;
+        }
+
+        function downloadResult() {
+            if (!resultUrl) return;
+            const a = document.createElement("a");
+            a.href = resultUrl;
+            a.download = "converted.jpg";
+            a.click();
+        }
+    </script>
+</body>
+</html>

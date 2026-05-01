@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-Image-2 图生图测试</title>
+    <style>
+        :root {
+            --bg: #f5f5f7;
+            --card-bg: #ffffff;
+            --text: #1d1d1f;
+            --text-secondary: #6e6e73;
+            --accent: #1e78ff;
+            --accent-hover: #0056d6;
+            --border: #e0e0e5;
+            --success: #34c759;
+            --error: #ff3b30;
+            --radius: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            padding: 40px 20px 20px;
+        }
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 6px;
+        }
+        .header p {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px 40px;
+            display: grid;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-title .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+
+        /* Upload area */
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            position: relative;
+        }
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(30, 120, 255, 0.04);
+        }
+        .upload-zone.has-image {
+            padding: 0;
+            border-style: solid;
+            border-color: var(--border);
+        }
+        .upload-zone img {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 10px;
+            object-fit: contain;
+        }
+        .upload-icon {
+            font-size: 40px;
+            line-height: 1;
+        }
+        .upload-text {
+            font-size: 15px;
+            color: var(--text);
+        }
+        .upload-hint {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .upload-zone .remove-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .upload-zone .remove-btn:hover { background: rgba(0,0,0,0.8); }
+
+        /* Form */
+        .form-group { margin-bottom: 16px; }
+        .form-group:last-child { margin-bottom: 0; }
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        textarea, select {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-family: inherit;
+            color: var(--text);
+            background: var(--bg);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        textarea:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(30,120,255,0.1);
+        }
+        textarea { min-height: 80px; resize: vertical; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 12px 28px;
+            font-size: 15px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            width: 100%;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-group { display: flex; gap: 10px; }
+        .btn-group .btn { flex: 1; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .btn-outline:hover { background: var(--bg); }
+
+        /* Status */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #f0f8ff;
+            border: 1px solid #d0e4f7;
+        }
+        .status-bar.success {
+            background: #e8faf0;
+            border-color: #c3e8d4;
+        }
+        .status-bar.error {
+            background: #fff0f0;
+            border-color: #ffd6d6;
+        }
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #e0e0e5;
+            border-top: 2px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Result */
+        .result-section { display: none; }
+        .result-section.show { display: block; }
+        .result-image {
+            width: 100%;
+            border-radius: var(--radius);
+            max-height: 500px;
+            object-fit: contain;
+            background: #f9f9f9;
+        }
+        .result-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        /* API Key notice */
+        .apikey-notice {
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #8d6e00;
+        }
+        .apikey-notice code {
+            background: rgba(0,0,0,0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        @media (max-width: 600px) {
+            .container { padding: 0 12px 24px; }
+            .card { padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>GPT-Image-2 图生图测试</h1>
+        <p>上传参考图 + 输入提示词，AI 生成新图片</p>
+    </div>
+
+    <div class="container">
+        <div class="card" id="upload-card">
+            <div class="card-title"><span class="dot"></span>参考图片</div>
+            <div class="upload-zone" id="upload-zone">
+                <div class="upload-icon">🖼️</div>
+                <div class="upload-text">点击上传或拖拽图片到此处</div>
+                <div class="upload-hint">支持 JPG / PNG / WebP / GIF / BMP</div>
+                <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><span class="dot"></span>生成参数</div>
+            <div class="form-group">
+                <label class="form-label" for="prompt">提示词</label>
+                <textarea id="prompt" placeholder="描述你想要生成的图片内容，例如：将这张照片转为吉卜力动画风格，保持人物姿态不变"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="size">输出比例</label>
+                <select id="size">
+                    <option value="auto">自动</option>
+                    <option value="1:1">1:1 (正方形)</option>
+                    <option value="3:2">3:2</option>
+                    <option value="2:3">2:3</option>
+                    <option value="16:9">16:9 (宽屏)</option>
+                    <option value="9:16">9:16 (竖屏)</option>
+                    <option value="4:3">4:3</option>
+                    <option value="3:4">3:4</option>
+                    <option value="21:9">21:9</option>
+                    <option value="9:21">9:21</option>
+                    <option value="2:1">2:1</option>
+                    <option value="1:2">1:2</option>
+                    <option value="3:1">3:1</option>
+                    <option value="1:3">1:3</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" id="generate-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l-8 8h5v10h6V11h5z"/></svg>
+                生成图片
+            </button>
+        </div>
+
+        <div id="status-area"></div>
+        <div class="card result-section" id="result-card">
+            <div class="card-title"><span class="dot"></span>生成结果</div>
+            <img class="result-image" id="result-image" alt="生成结果">
+            <div class="result-actions">
+                <button class="btn btn-outline" id="download-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    下载图片
+                </button>
+                <button class="btn btn-outline" id="retry-btn" onclick="location.reload()">重新生成</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadZone = document.getElementById("upload-zone");
+        const fileInput = document.getElementById("file-input");
+        const generateBtn = document.getElementById("generate-btn");
+        const statusArea = document.getElementById("status-area");
+        const resultCard = document.getElementById("result-card");
+        const resultImage = document.getElementById("result-image");
+        const downloadBtn = document.getElementById("download-btn");
+
+        let uploadedDataUrl = null;
+        let uploadedFile = null;
+        let pollingTimer = null;
+
+        function storeFile(file) {
+            uploadedFile = file;
+            handleFile(file);
+        }
+
+        // Upload zone events
+        uploadZone.addEventListener("click", () => fileInput.click());
+        uploadZone.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            uploadZone.classList.add("drag-over");
+        });
+        uploadZone.addEventListener("dragleave", () => {
+            uploadZone.classList.remove("drag-over");
+        });
+        uploadZone.addEventListener("drop", (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove("drag-over");
+            const file = e.dataTransfer.files[0];
+            if (file) storeFile(file);
+        });
+        fileInput.addEventListener("change", () => {
+            const file = fileInput.files[0];
+            if (file) storeFile(file);
+        });
+
+        async function handleFile(file) {
+            if (!file.type.startsWith("image/")) {
+                showStatus("不支持的文件类型", "error");
+                return;
+            }
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const resp = await fetch("/api/upload", { method: "POST", body: formData });
+                const data = await resp.json();
+                if (data.error) {
+                    showStatus(data.error, "error");
+                    return;
+                }
+                uploadedDataUrl = data.data_url;
+                renderPreview(data.data_url);
+            } catch (err) {
+                showStatus("上传失败: " + err.message, "error");
+            }
+        }
+
+        function renderPreview(dataUrl) {
+            uploadZone.innerHTML = `
+                <img src="${dataUrl}" alt="reference image">
+                <button class="remove-btn" id="remove-img">&times;</button>
+            `;
+            uploadZone.classList.add("has-image");
+            document.getElementById("remove-img").addEventListener("click", (e) => {
+                e.stopPropagation();
+                clearImage();
+            });
+        }
+
+        function clearImage() {
+            uploadedDataUrl = null;
+            uploadedFile = null;
+            uploadZone.classList.remove("has-image");
+            uploadZone.innerHTML = `
+                <div class="upload-icon">🖼️</div>
+                <div class="upload-text">点击上传或拖拽图片到此处</div>
+                <div class="upload-hint">支持 JPG / PNG / WebP / GIF / BMP</div>
+            `;
+            fileInput.value = "";
+        }
+
+        function showStatus(msg, type) {
+            const cls = type === "error" ? "error" : (type === "success" ? "success" : "");
+            statusArea.innerHTML = `<div class="status-bar ${cls}">
+                ${type === "loading" ? '<div class="spinner"></div>' : ""}
+                <span>${msg}</span>
+            </div>`;
+        }
+
+        generateBtn.addEventListener("click", async () => {
+            const prompt = document.getElementById("prompt").value.trim();
+            const size = document.getElementById("size").value;
+            const file = uploadedFile;
+            if (!prompt) { showStatus("请输入提示词", "error"); return; }
+
+            generateBtn.disabled = true;
+            showStatus("正在提交任务...", "loading");
+
+            try {
+                const formData = new FormData();
+                formData.append("prompt", prompt);
+                formData.append("size", size);
+                if (file) {
+                    formData.append("file", file);
+                }
+
+                const resp = await fetch("/api/generate", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await resp.json();
+                if (data.error) {
+                    showStatus(data.error, "error");
+                    generateBtn.disabled = false;
+                    return;
+                }
+                startPolling(data.task_id);
+            } catch (err) {
+                showStatus("请求失败: " + err.message, "error");
+                generateBtn.disabled = false;
+            }
+        });
+
+        function startPolling(taskId) {
+            if (pollingTimer) clearInterval(pollingTimer);
+            let attempts = 0;
+            const maxAttempts = 100;
+
+            pollingTimer = setInterval(async () => {
+                attempts++;
+                showStatus(`任务处理中，正在查询结果... (${attempts})`, "loading");
+                try {
+                    const resp = await fetch(`/api/result/${taskId}`);
+                    const data = await resp.json();
+
+                    if (data.status === "success") {
+                        clearInterval(pollingTimer);
+                        pollingTimer = null;
+                        const extra = data.original_url ? ' (已自动转为JPG)' : '';
+                        showStatus("生成完成!" + extra, "success");
+                        generateBtn.disabled = false;
+
+                        if (data.image_url) {
+                            resultImage.src = data.image_url;
+                            resultCard.classList.add("show");
+                            downloadBtn.onclick = () => {
+                                const a = document.createElement("a");
+                                a.href = data.image_url;
+                                a.download = taskId + ".png";
+                                a.click();
+                            };
+                        } else if (data.raw_data) {
+                            // fallback: show raw data
+                            statusArea.innerHTML += `<pre style="margin-top:10px;font-size:12px;overflow:auto">${JSON.stringify(data.raw_data, null, 2)}</pre>`;
+                        }
+                    } else if (data.status === "failed") {
+                        clearInterval(pollingTimer);
+                        pollingTimer = null;
+                        showStatus("生成失败: " + (data.message || "未知错误"), "error");
+                        generateBtn.disabled = false;
+                    }
+                } catch (err) {
+                    clearInterval(pollingTimer);
+                    pollingTimer = null;
+                    showStatus("查询失败: " + err.message, "error");
+                    generateBtn.disabled = false;
+                }
+
+                if (attempts >= maxAttempts) {
+                    clearInterval(pollingTimer);
+                    pollingTimer = null;
+                    showStatus("查询超时，任务可能仍在处理中，请稍后使用 task_id 查询", "error");
+                    generateBtn.disabled = false;
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

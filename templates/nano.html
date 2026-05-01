@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NanoBanana2 4K 生图测试</title>
+    <style>
+        :root {
+            --bg: #f5f5f7; --card-bg: #ffffff; --text: #1d1d1f;
+            --text-secondary: #6e6e73; --accent: #7c3aed; --accent-hover: #6d28d9;
+            --border: #e0e0e5; --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg); color: var(--text); min-height: 100vh;
+        }
+        .header { text-align: center; padding: 40px 20px 20px; }
+        .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; }
+        .header .badge {
+            display: inline-block; background: var(--accent); color: #fff;
+            padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+            vertical-align: middle; margin-left: 8px;
+        }
+        .header p { color: var(--text-secondary); font-size: 15px; }
+        .header .nav { margin-top: 8px; font-size: 13px; }
+        .header .nav a { color: var(--accent); text-decoration: none; }
+        .container { max-width: 800px; margin: 0 auto; padding: 0 20px 40px; display: grid; gap: 20px; }
+        .card {
+            background: var(--card-bg); border-radius: var(--radius); padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .card-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+        .upload-zone {
+            border: 2px dashed var(--border); border-radius: var(--radius); padding: 40px;
+            text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s;
+            min-height: 180px; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 10px; position: relative;
+        }
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--accent); background: rgba(124,58,237,0.04);
+        }
+        .upload-zone.has-image { padding: 0; border-style: solid; }
+        .upload-zone img { max-width: 100%; max-height: 400px; border-radius: 10px; object-fit: contain; }
+        .upload-zone .remove-btn {
+            position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.6);
+            color: #fff; border: none; border-radius: 50%; width: 28px; height: 28px;
+            cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
+        }
+        .upload-icon { font-size: 40px; line-height: 1; }
+        .upload-text { font-size: 15px; }
+        .upload-hint { font-size: 13px; color: var(--text-secondary); }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
+        .form-label {
+            display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+        }
+        textarea, select {
+            width: 100%; border: 1px solid var(--border); border-radius: 8px;
+            padding: 10px 14px; font-size: 14px; font-family: inherit; color: var(--text);
+            background: var(--bg); outline: none; transition: border-color 0.2s;
+        }
+        textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
+        textarea { min-height: 80px; resize: vertical; }
+
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 12px 28px; font-size: 15px; font-weight: 600; border: none;
+            border-radius: 8px; cursor: pointer; transition: all 0.2s; font-family: inherit;
+        }
+        .btn-primary { background: var(--accent); color: #fff; width: 100%; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .status-bar {
+            display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+            border-radius: 8px; font-size: 14px;
+        }
+        .status-bar.loading { background: #f5f3ff; border: 1px solid #ddd6fe; }
+        .status-bar.success { background: #ecfdf5; border: 1px solid #a7f3d0; }
+        .status-bar.error { background: #fff0f0; border-color: #ffd6d6; }
+        .spinner {
+            width: 18px; height: 18px; border: 2px solid #e0e0e5;
+            border-top: 2px solid var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .result-section { display: none; }
+        .result-section.show { display: block; }
+        .result-image {
+            width: 100%; border-radius: var(--radius); max-height: 500px;
+            object-fit: contain; background: #f9f9f9;
+        }
+        .result-badge {
+            display: inline-block; padding: 4px 10px; border-radius: 20px;
+            font-size: 12px; font-weight: 600; background: #f3e8ff; color: #7c3aed;
+            margin-bottom: 12px;
+        }
+        .btn-outline {
+            background: transparent; border: 1px solid var(--border); color: var(--text);
+        }
+        .btn-outline:hover { background: var(--bg); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>NanoBanana2<span class="badge">4K</span></h1>
+        <p>上传参考图，自动提升分辨率到 4K（自动输出 JPG）</p>
+        <div class="nav"><a href="/">← GPT-Image-2</a> &nbsp;·&nbsp; <a href="/convert">格式转换</a></div>
+    </div>
+
+    <div class="container">
+        <div class="card" id="upload-card">
+            <div class="card-title"><span class="dot"></span>参考图片 <span style="font-weight:400;font-size:12px;color:var(--text-secondary)">(可选)</span></div>
+            <div class="upload-zone" id="upload-zone">
+                <div class="upload-icon">🖼️</div>
+                <div class="upload-text">点击上传或拖拽参考图</div>
+                <div class="upload-hint">支持 JPG / PNG / WebP &nbsp;·&nbsp; NanoBanana2 支持最多 14 张参考图</div>
+                <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp" hidden>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><span class="dot"></span>生成参数</div>
+            <input type="hidden" id="prompt" value="提升分辨率到4k，不要改变图像比例">
+            <div class="form-row">
+                <div>
+                    <label class="form-label" for="resolution">分辨率</label>
+                    <select id="resolution">
+                        <option value="1K">1K (标清)</option>
+                        <option value="2K">2K (高清)</option>
+                        <option value="4K" selected>4K (超高清)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" for="aspect-ratio">输出比例</label>
+                    <select id="aspect-ratio">
+                        <option value="auto">自动</option>
+                        <option value="1:1">1:1 (正方形)</option>
+                        <option value="16:9">16:9 (宽屏)</option>
+                        <option value="9:16">9:16 (竖屏)</option>
+                        <option value="4:3">4:3</option>
+                        <option value="3:4">3:4</option>
+                        <option value="3:2">3:2</option>
+                        <option value="2:3">2:3</option>
+                        <option value="5:4">5:4</option>
+                        <option value="4:5">4:5</option>
+                        <option value="21:9">21:9</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn btn-primary" id="generate-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l-8 8h5v10h6V11h5z"/></svg>
+                生成图片
+            </button>
+        </div>
+
+        <div id="status-area"></div>
+
+        <div class="card result-section" id="result-card">
+            <div class="card-title"><span class="dot"></span>生成结果</div>
+            <div id="result-info"></div>
+            <img class="result-image" id="result-image" alt="生成结果">
+            <div style="display:flex;gap:10px;margin-top:16px;">
+                <button class="btn btn-outline" id="download-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    下载 JPG
+                </button>
+                <button class="btn btn-outline" onclick="location.reload()">重新生成</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadZone = document.getElementById("upload-zone");
+        const fileInput = document.getElementById("file-input");
+        const generateBtn = document.getElementById("generate-btn");
+        const statusArea = document.getElementById("status-area");
+        const resultCard = document.getElementById("result-card");
+        const resultImage = document.getElementById("result-image");
+        const resultInfo = document.getElementById("result-info");
+
+        let uploadedFile = null;
+        let pollingTimer = null;
+
+        uploadZone.addEventListener("click", () => fileInput.click());
+        uploadZone.addEventListener("dragover", (e) => { e.preventDefault(); uploadZone.classList.add("drag-over"); });
+        uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("drag-over"));
+        uploadZone.addEventListener("drop", (e) => {
+            e.preventDefault(); uploadZone.classList.remove("drag-over");
+            if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener("change", () => {
+            if (fileInput.files[0]) setFile(fileInput.files[0]);
+        });
+
+        function setFile(file) {
+            if (!file.type.startsWith("image/")) return;
+            uploadedFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                uploadZone.innerHTML = `<img src="${e.target.result}" alt="ref"><button class="remove-btn" id="remove-img">&times;</button>`;
+                uploadZone.classList.add("has-image");
+                document.getElementById("remove-img").addEventListener("click", (ev) => { ev.stopPropagation(); clearFile(); });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearFile() {
+            uploadedFile = null; fileInput.value = "";
+            uploadZone.classList.remove("has-image");
+            uploadZone.innerHTML = `<div class="upload-icon">🖼️</div><div class="upload-text">点击上传或拖拽参考图</div><div class="upload-hint">支持 JPG / PNG / WebP &nbsp;·&nbsp; NanoBanana2 支持最多 14 张参考图</div>`;
+        }
+
+        function showStatus(msg, type) {
+            const cls = type === "error" ? "error" : (type === "success" ? "success" : "loading");
+            statusArea.innerHTML = `<div class="status-bar ${cls}">${type === "loading" ? '<div class="spinner"></div>' : ""}<span>${msg}</span></div>`;
+        }
+
+        generateBtn.addEventListener("click", async () => {
+            const prompt = document.getElementById("prompt").value.trim();
+            if (!prompt) { showStatus("请输入提示词", "error"); return; }
+
+            generateBtn.disabled = true;
+            showStatus("正在提交任务至 NanoBanana2...", "loading");
+
+            try {
+                const fd = new FormData();
+                fd.append("prompt", prompt);
+                fd.append("resolution", document.getElementById("resolution").value);
+                fd.append("aspect_ratio", document.getElementById("aspect-ratio").value);
+                if (uploadedFile) fd.append("file", uploadedFile);
+
+                const resp = await fetch("/api/nano/generate", { method: "POST", body: fd });
+                const data = await resp.json();
+                if (data.error) { showStatus(data.error, "error"); generateBtn.disabled = false; return; }
+                startPolling(data.task_id);
+            } catch (err) {
+                showStatus("请求失败: " + err.message, "error");
+                generateBtn.disabled = false;
+            }
+        });
+
+        function startPolling(taskId) {
+            if (pollingTimer) clearInterval(pollingTimer);
+            let attempts = 0;
+
+            pollingTimer = setInterval(async () => {
+                attempts++;
+                showStatus(`任务处理中 (${attempts})... 4K 分辨率生成时间较长，请耐心等待`, "loading");
+                try {
+                    const resp = await fetch(`/api/nano/result/${taskId}`);
+                    const data = await resp.json();
+
+                    if (data.status === "success") {
+                        clearInterval(pollingTimer); pollingTimer = null;
+                        const res = data.resolution || "4K";
+                        showStatus(`生成完成! ${res} JPG `, "success");
+                        generateBtn.disabled = false;
+                        resultInfo.innerHTML = `<span class="result-badge">${res} &nbsp;·&nbsp; 已自动转JPG</span>`;
+                        resultImage.src = data.image_url;
+                        resultCard.classList.add("show");
+                        document.getElementById("download-btn").onclick = () => {
+                            const a = document.createElement("a");
+                            a.href = data.image_url; a.download = `${taskId}.jpg`; a.click();
+                        };
+                    } else if (data.status === "failed") {
+                        clearInterval(pollingTimer); pollingTimer = null;
+                        showStatus("生成失败: " + (data.message || "未知错误"), "error");
+                        generateBtn.disabled = false;
+                    }
+                } catch (err) {
+                    clearInterval(pollingTimer); pollingTimer = null;
+                    showStatus("查询失败: " + err.message, "error");
+                    generateBtn.disabled = false;
+                }
+                if (attempts >= 200) {
+                    clearInterval(pollingTimer); pollingTimer = null;
+                    showStatus("查询超时，任务可能仍在处理中", "error");
+                    generateBtn.disabled = false;
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
