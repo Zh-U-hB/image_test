@@ -325,6 +325,35 @@ html, body { height:100%; overflow-x:hidden; font-family:-apple-system,BlinkMacS
 .comm-action-btn.liked { color:#ff3b6e; }
 .comm-action-btn .like-count { font-size:11px; margin-left:2px; }
 
+/* ── Tutorial Overlay ─────────────────── */
+#tutorial-overlay {
+  position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.75);
+  display:none; pointer-events:auto;
+}
+#tutorial-overlay.show { display:block; }
+.tutorial-spotlight {
+  position:fixed; z-index:201; border:3px solid var(--accent);
+  border-radius:12px; box-shadow:0 0 0 9999px rgba(0,0,0,.75), 0 0 24px rgba(124,58,237,.5);
+  pointer-events:none; transition:all .35s ease;
+}
+.tutorial-card {
+  position:fixed; z-index:202; background:var(--card-bg); backdrop-filter:blur(20px);
+  border-radius:16px; border:1px solid rgba(255,255,255,.12); padding:24px;
+  max-width:360px; width:calc(100% - 32px); box-shadow:0 16px 48px rgba(0,0,0,.5);
+  transition:all .35s ease; animation:tutIn .3s ease-out;
+}
+@keyframes tutIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.tutorial-step-num { font-size:11px; color:var(--accent2); text-transform:uppercase; letter-spacing:2px; margin-bottom:4px; }
+.tutorial-title { font-size:20px; font-weight:700; margin-bottom:8px; }
+.tutorial-desc { font-size:14px; color:var(--text2); line-height:1.6; margin-bottom:20px; }
+.tutorial-nav { display:flex; align-items:center; gap:10px; }
+.tutorial-dots { display:flex; gap:6px; flex:1; }
+.tutorial-dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.2); transition:all .2s; }
+.tutorial-dot.active { background:var(--accent); width:24px; border-radius:4px; }
+.tutorial-skip { background:transparent; border:none; color:var(--text2); cursor:pointer; font-size:13px; font-family:inherit; }
+.tutorial-next { background:var(--accent); color:#fff; border:none; padding:8px 20px; border-radius:20px; cursor:pointer; font-size:14px; font-weight:600; font-family:inherit; }
+.tutorial-prev { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.15); padding:8px 20px; border-radius:20px; cursor:pointer; font-size:14px; font-family:inherit; }
+
 /* Responsive */
 @media (max-width:768px) {
   :root { --sidebar-w:100vw; --minimap-w:130px; --minimap-h:100px; --topbar-h:44px; }
@@ -410,7 +439,7 @@ html, body { height:100%; overflow-x:hidden; font-family:-apple-system,BlinkMacS
   <p class="tagline">探索校园，用AI重新设计你的视角<br>Explore campus, redesign your perspective with AI</p>
   <div class="btn-group">
     <button class="btn btn-primary" onclick="navigate('map')">开始游戏</button>
-    <button class="btn btn-outline" onclick="alert('引导教程即将上线！Tutorial coming soon!')">引导教程</button>
+    <button class="btn btn-outline" onclick="startTutorial()">引导教程</button>
     <button class="btn btn-outline" onclick="toggleSettings()">设置 Settings</button>
   </div>
   <div id="my-designs-section" style="margin-top:32px;max-width:700px;width:90%;display:none;">
@@ -1893,3 +1922,207 @@ commCanvas.addEventListener("contextmenu", (e) => e.preventDefault());
   renderPage();
 })();
 </script>
+
+<!-- ════ TUTORIAL OVERLAY ════ -->
+<div id="tutorial-overlay"></div>
+<div class="tutorial-spotlight" id="tutorial-spotlight"></div>
+<div class="tutorial-card" id="tutorial-card">
+  <div class="tutorial-step-num" id="tut-step-num"></div>
+  <div class="tutorial-title" id="tut-title"></div>
+  <div class="tutorial-desc" id="tut-desc"></div>
+  <div class="tutorial-nav">
+    <button class="tutorial-skip" id="tut-skip" onclick="endTutorial()">跳过</button>
+    <div class="tutorial-dots" id="tut-dots"></div>
+    <button class="tutorial-prev" id="tut-prev" onclick="prevTutorialStep()">上一步</button>
+    <button class="tutorial-next" id="tut-next" onclick="nextTutorialStep()">下一步</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+//  Tutorial System
+// ═══════════════════════════════════════
+const TUTORIAL_STEPS = [
+  {
+    target: "#map-main",
+    title: "探索清华SIGS校园",
+    desc: "欢迎来到你的清华SIGS！地图上有 <b>166个实景全景采集点</b>，遍布整个校园。你可以缩放、拖拽来浏览校园全貌。",
+    position: "center"
+  },
+  {
+    target: "#map-main",
+    title: "进入全景漫游",
+    desc: "点击地图上的<b>紫色标记点</b>，即可进入该位置的真实360°全景视图。试试找一个感兴趣的地点吧！",
+    position: "center",
+    action: "explore_entry"
+  },
+  {
+    target: "#pano-controls",
+    title: "全景漫游模式",
+    desc: "在全景视图中，你可以<b>拖拽旋转视角</b>、<b>滚动缩放</b>。点击3D场景中的<b>箭头</b>可以移动到附近的采集点。右下角小地图帮你定位。",
+    position: "bottom"
+  },
+  {
+    target: "#mode-design",
+    title: "AI设计编辑模式",
+    desc: "点击顶部的<b>「设计编辑模式」</b>按钮，AI设计助手「小清」将分析你当前的场景，并引导你通过对话来重新设计这个场景。",
+    position: "top"
+  },
+  {
+    target: "#agent-sidebar",
+    title: "AI设计助手 · 小清",
+    desc: "小清会先描述场景，然后和你进行<b>5轮对话</b>来逐步细化你的设计构想。你可以自由输入你的创意，小清会帮你整理成设计概念。确认后，AI将为你生成新的全景图。",
+    position: "left"
+  },
+  {
+    target: "#community-nav-btn",
+    title: "设计社区",
+    desc: "点击顶栏的<b>「社区」</b>按钮，可以浏览其他同学的设计作品，点赞和分享你自己的创作。生成的全景图可以一键分享到社区！",
+    position: "bottom"
+  },
+  {
+    target: "#page-welcome h1",
+    title: "你的设计项目",
+    desc: "回到<b>首页</b>可以看到你所有的设计项目。后台生成的图像会自动出现在这里，点击即可查看进度或继续编辑。",
+    position: "bottom",
+    route: "welcome"
+  }
+];
+
+let tutorialStep = 0;
+
+function startTutorial() {
+  tutorialStep = 0;
+  document.getElementById("tutorial-overlay").classList.add("show");
+  document.getElementById("tutorial-spotlight").style.display = "block";
+  document.getElementById("tutorial-card").style.display = "block";
+  // Navigate to map first
+  if (state.route !== "map" && TUTORIAL_STEPS[0].route !== state.route) {
+    navigate("map");
+  }
+  setTimeout(() => showTutorialStep(0), 400);
+}
+
+function endTutorial() {
+  document.getElementById("tutorial-overlay").classList.remove("show");
+  document.getElementById("tutorial-spotlight").style.display = "none";
+  document.getElementById("tutorial-card").style.display = "none";
+  tutorialStep = 0;
+}
+
+function showTutorialStep(i) {
+  tutorialStep = i;
+  const step = TUTORIAL_STEPS[i];
+  if (!step) { endTutorial(); return; }
+
+  // Navigate if step requires a different route
+  if (step.route && state.route !== step.route) {
+    navigate(step.route);
+    setTimeout(() => showTutorialStep(i), 500);
+    return;
+  }
+
+  // Update card content
+  document.getElementById("tut-step-num").textContent = `第 ${i+1} 步 / 共 ${TUTORIAL_STEPS.length} 步`;
+  document.getElementById("tut-title").textContent = step.title;
+  document.getElementById("tut-desc").innerHTML = step.desc;
+
+  // Update dots
+  const dots = document.getElementById("tut-dots");
+  dots.innerHTML = TUTORIAL_STEPS.map((_,j) =>
+    `<div class="tutorial-dot${j===i?' active':''}"></div>`
+  ).join("");
+
+  // Update prev/next buttons
+  document.getElementById("tut-prev").style.display = i === 0 ? "none" : "";
+  document.getElementById("tut-next").textContent = i === TUTORIAL_STEPS.length - 1 ? "完成" : "下一步";
+  document.getElementById("tut-next").onclick = i === TUTORIAL_STEPS.length - 1 ? endTutorial : nextTutorialStep;
+
+  // Position spotlight and card
+  positionTutorial(step.target, step.position);
+}
+
+function positionTutorial(selector, position) {
+  const spotlight = document.getElementById("tutorial-spotlight");
+  const card = document.getElementById("tutorial-card");
+  const target = document.querySelector(selector);
+
+  if (!target) {
+    // Target not visible, center card
+    spotlight.style.display = "none";
+    card.style.top = "50%"; card.style.left = "50%";
+    card.style.transform = "translate(-50%,-50%)";
+    return;
+  }
+
+  const rect = target.getBoundingClientRect();
+  const pad = 8;
+  spotlight.style.display = "block";
+  spotlight.style.top = (rect.top - pad) + "px";
+  spotlight.style.left = (rect.left - pad) + "px";
+  spotlight.style.width = (rect.width + pad*2) + "px";
+  spotlight.style.height = (rect.height + pad*2) + "px";
+
+  // Position card near the target
+  const cardW = 360;
+  const cardH = 260;
+  let top, left;
+  const gap = 16;
+
+  switch (position) {
+    case "top":
+      top = rect.top - cardH - gap;
+      left = rect.left + rect.width/2 - cardW/2;
+      break;
+    case "bottom":
+      top = rect.bottom + gap;
+      left = rect.left + rect.width/2 - cardW/2;
+      break;
+    case "left":
+      top = rect.top + rect.height/2 - cardH/2;
+      left = rect.left - cardW - gap;
+      break;
+    case "right":
+      top = rect.top + rect.height/2 - cardH/2;
+      left = rect.right + gap;
+      break;
+    default: // center
+      spotlight.style.display = "none";
+      top = innerHeight/2 - cardH/2;
+      left = innerWidth/2 - cardW/2;
+  }
+
+  // Clamp to viewport
+  top = Math.max(10, Math.min(innerHeight - cardH - 10, top));
+  left = Math.max(10, Math.min(innerWidth - cardW - 10, left));
+
+  card.style.top = top + "px";
+  card.style.left = left + "px";
+  card.style.transform = "none";
+}
+
+function nextTutorialStep() {
+  if (tutorialStep < TUTORIAL_STEPS.length - 1) {
+    showTutorialStep(tutorialStep + 1);
+  }
+}
+
+function prevTutorialStep() {
+  if (tutorialStep > 0) {
+    showTutorialStep(tutorialStep - 1);
+  }
+}
+
+// Re-position on resize
+window.addEventListener("resize", () => {
+  if (document.getElementById("tutorial-overlay").classList.contains("show")) {
+    const step = TUTORIAL_STEPS[tutorialStep];
+    if (step) positionTutorial(step.target, step.position);
+  }
+});
+
+window.startTutorial = startTutorial;
+</script>
+
+</body>
+</html>
