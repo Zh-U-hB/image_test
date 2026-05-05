@@ -18,6 +18,12 @@ html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSys
 .page { position:fixed; inset:0; display:none; z-index:1; }
 .page.active { display:flex; }
 
+/* ── Auth ─────────────────────────── */
+#page-auth {
+  flex-direction:column; align-items:center; justify-content:center;
+  background: radial-gradient(ellipse at center, #1a1030 0%, var(--bg) 70%);
+}
+
 /* ── Welcome ──────────────────────── */
 #page-welcome {
   flex-direction:column; align-items:center; justify-content:center;
@@ -208,8 +214,34 @@ html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSys
   border-radius:10px; padding:12px; color:var(--text); font-size:13px;
   font-family:inherit; resize:vertical; min-height:60px; margin-bottom:16px;
 }
-#agent-generate-btn { width:100%; margin-top:12px; }
+#agent-generate-btn { width:100%; margin-top:12px; display:none; }
 #agent-generate-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* Chat UI */
+#agent-chat { flex:1; overflow-y:auto; padding:8px 0; display:flex; flex-direction:column; gap:12px; min-height:0; }
+.chat-msg { max-width:88%; padding:12px 16px; border-radius:16px; font-size:13px; line-height:1.55; word-break:break-word; animation:msgIn .3s ease-out; }
+.chat-msg.agent { align-self:flex-start; background:rgba(255,255,255,.08); border-bottom-left-radius:4px; }
+.chat-msg.player { align-self:flex-end; background:var(--accent); border-bottom-right-radius:4px; }
+@keyframes msgIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.agent-loading { display:flex; flex-direction:column; align-items:center; gap:16px; padding:32px 20px; animation:msgIn .4s ease-out; }
+.agent-loading-spinner { width:44px; height:44px; border:3px solid rgba(255,255,255,.1); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.agent-loading-text { font-size:13px; color:var(--text2); text-align:center; line-height:1.6; }
+.agent-loading-dots::after { content:""; animation:dots 1.5s steps(4,end) infinite; }
+@keyframes dots { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+#agent-bottom { margin-top:12px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+#agent-options { display:flex; flex-direction:column; gap:6px; }
+#agent-options button {
+  width:100%; padding:12px 16px; border-radius:10px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04); color:var(--text); cursor:pointer;
+  font-size:13px; font-family:inherit; text-align:left; transition:all .2s;
+}
+#agent-options button:hover { border-color:var(--accent); background:rgba(124,58,237,.12); }
+#agent-input-row input::placeholder { color:rgba(255,255,255,.3); }
+
+/* Fallback hidden */
+#prompt-preview, #system-prompt-input { display:none; }
 
 /* Generation loading */
 #gen-overlay {
@@ -301,6 +333,22 @@ html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSys
 </head>
 <body>
 
+<!-- ════ AUTH PAGE ════ -->
+<div id="page-auth" class="page active">
+  <div style="text-align:center;max-width:380px;width:90%;">
+    <h1 style="font-size:clamp(28px,6vw,48px);font-weight:900;letter-spacing:-1px;background:linear-gradient(135deg,#a78bfa,#7c3aed,#4c1d95);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;">你的清华SIGS</h1>
+    <p style="color:var(--text2);font-size:14px;margin-bottom:24px;">登录或注册以开始探索</p>
+    <div id="auth-form">
+      <input type="text" id="auth-username" placeholder="用户名" style="width:100%;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#fff;font-size:15px;font-family:inherit;margin-bottom:10px;outline:none;">
+      <input type="password" id="auth-password" placeholder="密码" style="width:100%;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#fff;font-size:15px;font-family:inherit;margin-bottom:6px;outline:none;">
+      <p id="auth-hint" style="font-size:11px;color:rgba(255,255,255,.35);margin-bottom:16px;">用户名和密码尽量简单即可，无需邮箱或手机号</p>
+      <div id="auth-error" style="color:#ff3b30;font-size:13px;margin-bottom:12px;display:none;"></div>
+      <button class="btn btn-primary" onclick="authAction()" style="width:100%;margin-bottom:8px;" id="auth-btn">注册</button>
+      <button class="btn btn-outline btn-sm" onclick="toggleAuthMode()" style="width:100%;" id="auth-toggle">已有账号？去登录</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════ WELCOME PAGE ════ -->
 <div id="page-welcome" class="page active">
   <h1>你的清华SIGS</h1>
@@ -309,6 +357,10 @@ html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSys
     <button class="btn btn-primary" onclick="navigate('map')">开始游戏</button>
     <button class="btn btn-outline" onclick="alert('引导教程即将上线！Tutorial coming soon!')">引导教程</button>
     <button class="btn btn-outline" onclick="toggleSettings()">设置 Settings</button>
+  </div>
+  <div id="my-designs-section" style="margin-top:32px;max-width:600px;width:90%;display:none;">
+    <h3 style="font-size:16px;margin-bottom:12px;color:var(--text2);">我的设计</h3>
+    <div id="my-designs-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;"></div>
   </div>
 </div>
 
@@ -367,7 +419,7 @@ html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSys
   <h2>清华大学深圳国际研究生院</h2>
   <span class="badge">校园实景</span>
   <span class="count" id="point-count"></span>
-  <button class="topbar-btn" onclick="navigate('welcome')">← 退出</button>
+  <button class="topbar-btn" onclick="navigate('welcome')">🏠 首页</button>
   <button class="topbar-btn" id="community-nav-btn" onclick="navigate('community')">社区</button>
 </div>
 <div id="mode-toggle">
@@ -397,15 +449,18 @@ html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSys
     <button class="pano-btn" onclick="closeAgentSidebar()" style="position:static;">&times;</button>
   </div>
   <div id="agent-body">
-    <div id="agent-round-area">
-      <div class="agent-round-label" id="agent-round-label">第 1/4 步</div>
-      <div class="agent-round-title" id="agent-round-title">选择风格</div>
-      <div class="opt-grid" id="agent-options"></div>
+    <div id="agent-chat"></div>
+    <div id="agent-bottom">
+      <div id="agent-options"></div>
+      <div id="agent-confirm" style="display:none;flex-direction:column;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="agentConfirm()">确认并生成</button>
+        <button class="btn btn-outline btn-sm" onclick="agentRevise()">继续修改</button>
+      </div>
+      <div id="agent-input-row" style="display:none;gap:8px;">
+        <input type="text" id="agent-input" placeholder="输入你的想法..." onkeydown="if(event.key==='Enter') agentSendInput()" style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:10px 14px;color:#fff;font-size:14px;font-family:inherit;outline:none;">
+        <button class="btn btn-primary btn-sm" onclick="agentSendInput()">发送</button>
+      </div>
     </div>
-    <div id="prompt-preview"><strong>提示词预览：</strong><br><span id="prompt-text">尚未选择...</span></div>
-    <label style="font-size:12px;color:var(--text2);">系统提示词（可编辑）</label>
-    <textarea id="system-prompt-input" placeholder="系统提示词..."></textarea>
-    <button class="btn btn-primary" id="agent-generate-btn" disabled onclick="startGeneration()">生成设计</button>
     <div id="gen-overlay">
       <div class="gen-ring"></div>
       <div class="gen-timer" id="gen-timer">0s</div>
@@ -478,15 +533,18 @@ function t(key, params={}) {
 // ═══════════════════════════════════════
 const state = {
   language: localStorage.getItem("sigs_language") || "cn",
-  route: "welcome", mode: "explore",
+  route: "auth", mode: "explore",
+  username: "", loggedIn: false, authMode: "register", isAdmin: false,
   mapPoints: [], currentPoint: null,
   designSelections: { style:null, color:null, elements:null, atmosphere:null },
   designRound: 1, compiledPrompt: "", systemPrompt: "",
   genTaskId: null, genTimer: null, genResult: null, pollingTimer: null,
-  communityPosts: JSON.parse(localStorage.getItem("sigs_community_posts")||"[]"),
-  userLikes: JSON.parse(localStorage.getItem("sigs_user_likes")||"{}"),
+  activeProjects: {},
+  communityPosts: [],
+  userLikes: {},
   communitySort: "hot",
   commPanoState: { lat:0, lon:0, fov:75, autoRotate:true, isDragging:false, prevMouse:{x:0,y:0} },
+  agentSessionId: "", agentPhase: "guiding", agentRound: 0, useLLM: true,
 };
 window.state = state;
 
@@ -498,10 +556,75 @@ function saveLang() { localStorage.setItem("sigs_language", state.language); }
 //  Router & Page Render
 // ═══════════════════════════════════════
 function navigate(route) {
+  if (route !== "auth" && !state.loggedIn) {
+    state.route = "auth";
+    window.location.hash = "auth";
+    renderPage();
+    return;
+  }
   state.route = route;
   window.location.hash = route;
   renderPage();
 }
+window.addEventListener("hashchange", () => {
+  const r = window.location.hash.replace("#","") || "auth";
+  if (state.route !== r) { state.route = r; renderPage(); }
+});
+
+// ═══════════════════════════════════════
+//  Auth
+// ═══════════════════════════════════════
+async function checkAuth() {
+  try {
+    const resp = await fetch("/api/auth/me");
+    const data = await resp.json();
+    if (data.logged_in) {
+      state.loggedIn = true;
+      state.username = data.username;
+      state.isAdmin = data.admin || false;
+      state.route = "welcome";
+    }
+  } catch(e) { console.warn("Auth check failed"); }
+}
+
+async function authAction() {
+  const username = document.getElementById("auth-username").value.trim();
+  const password = document.getElementById("auth-password").value.trim();
+  const errEl = document.getElementById("auth-error");
+  if (!username || !password) { errEl.textContent = "请填写用户名和密码"; errEl.style.display = "block"; return; }
+  const mode = state.authMode;
+  const url = mode === "login" ? "/api/auth/login" : "/api/auth/register";
+  try {
+    const resp = await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({username, password}) });
+    const data = await resp.json();
+    if (data.error) {
+      if (mode === "login" && data.error.includes("用户名或密码错误")) {
+        errEl.innerHTML = data.error + '<br><span style="font-size:11px;color:rgba(255,255,255,.4);">如果是新用户，请先切换到"注册"模式</span>';
+      } else {
+        errEl.textContent = data.error;
+      }
+      errEl.style.display = "block"; return;
+    }
+    state.loggedIn = true; state.username = data.username;
+    // Also check admin status
+    try { const me = await (await fetch("/api/auth/me")).json(); state.isAdmin = me.admin || false; } catch(e) {}
+    navigate("welcome");
+  } catch(e) { errEl.textContent = "网络错误"; errEl.style.display = "block"; }
+}
+
+function toggleAuthMode() {
+  state.authMode = state.authMode === "login" ? "register" : "login";
+  document.getElementById("auth-btn").textContent = state.authMode === "login" ? "登录" : "注册";
+  document.getElementById("auth-toggle").textContent = state.authMode === "login" ? "还没有账号？去注册" : "已有账号？去登录";
+  document.getElementById("auth-hint").style.display = state.authMode === "register" ? "block" : "none";
+}
+
+async function logout() {
+  await fetch("/api/auth/logout", { method:"POST" });
+  state.loggedIn = false; state.username = "";
+  navigate("auth");
+}
+window.logout = logout;
 window.addEventListener("hashchange", () => {
   const r = window.location.hash.replace("#","") || "welcome";
   if (state.route !== r) { state.route = r; renderPage(); }
@@ -512,6 +635,39 @@ function renderPage() {
   const page = document.getElementById("page-"+state.route);
   if (page) page.classList.add("active");
 
+  // When navigating away from map, always clean up global overlays
+  if (state.route !== "map") {
+    resetGenOverlay();
+    try { document.getElementById("agent-sidebar").classList.remove("open"); } catch(e) {}
+    try { document.getElementById("mode-toggle").style.display = "none"; } catch(e) {}
+    try { document.getElementById("pano-layer").classList.remove("active"); } catch(e) {}
+    try { document.getElementById("pano-close-btn").classList.remove("show"); } catch(e) {}
+    try { document.getElementById("pano-controls").classList.remove("show"); } catch(e) {}
+    try { document.getElementById("minimap").classList.remove("show"); } catch(e) {}
+    try { document.getElementById("topbar").classList.remove("transparent"); } catch(e) {}
+  }
+
+  // Auth page
+  if (state.route === "auth") {
+    document.getElementById("topbar").style.display = "none";
+    return;
+  }
+
+  // Topbar user info
+  const topbar = document.getElementById("topbar");
+  const communityBtn = document.getElementById("community-nav-btn");
+  if (communityBtn && state.loggedIn) {
+    communityBtn.textContent = "👤 " + state.username + " | 社区";
+  }
+  const homeBtn = topbar.querySelector(".topbar-btn");
+  if (homeBtn && state.route === "welcome" && state.loggedIn) {
+    homeBtn.textContent = "退出登录";
+    homeBtn.onclick = logout;
+  } else if (homeBtn && state.route !== "welcome") {
+    homeBtn.textContent = "🏠 首页";
+    homeBtn.onclick = () => navigate("welcome");
+  }
+
   // Welcome text
   document.querySelector("#page-welcome h1").textContent = t("welcome_title");
   document.querySelector("#page-welcome .tagline").innerHTML = t("welcome_tagline");
@@ -519,36 +675,40 @@ function renderPage() {
   document.querySelector("#page-welcome .btn-group").children[1].textContent = t("btn_tutorial");
   document.querySelector("#page-welcome .btn-group").children[2].textContent = t("btn_settings");
 
-  // Map page
-  document.querySelector("#topbar h2").textContent = t("map_title");
-  document.querySelector("#topbar .badge").textContent = t("map_badge");
-  document.querySelector("#mode-explore").textContent = t("mode_explore");
-  document.querySelector("#mode-design").textContent = t("mode_design");
-  document.querySelector("#pano-hint").textContent = t("pano_hint");
-  document.querySelector("#pano-loading-text").textContent = t("pano_loading");
-  document.querySelector("#agent-header h3").textContent = "🤖 "+t("agent_title");
-  document.querySelector("#agent-round-label").textContent = t("agent_round",{r:state.designRound});
-  document.querySelector("#agent-generate-btn").textContent = t("agent_btn_generate");
-  document.querySelector("#gen-cancel-btn").textContent = t("agent_cancel");
-  document.querySelector("#system-prompt-input").previousElementSibling.textContent = t("agent_sys_label");
+  // Map page text (null-safe)
+  const q = (sel, fn) => { const el = document.querySelector(sel); if (el) fn(el); };
+  q("#topbar h2", el => el.textContent = t("map_title"));
+  q("#topbar .badge", el => el.textContent = t("map_badge"));
+  q("#mode-explore", el => el.textContent = t("mode_explore"));
+  q("#mode-design", el => el.textContent = t("mode_design"));
+  q("#pano-hint", el => el.textContent = t("pano_hint"));
+  q("#pano-loading-text", el => el.textContent = t("pano_loading"));
+  q("#agent-header h3", el => el.textContent = "🤖 "+t("agent_title"));
+  q("#gen-cancel-btn", el => el.textContent = t("agent_cancel"));
 
   // Community page
-  document.querySelector("#community-topbar h2").textContent = t("community_title");
-  document.querySelector("#sort-hot").textContent = t("community_hot");
-  document.querySelector("#sort-new").textContent = t("community_new");
+  q("#community-topbar h2", el => el.textContent = t("community_title"));
+  q("#sort-hot", el => el.textContent = t("community_hot"));
+  q("#sort-new", el => el.textContent = t("community_new"));
 
   // Show/hide global UI based on route
-  const topbar = document.getElementById("topbar");
   const modeToggle = document.getElementById("mode-toggle");
   if (state.route === "map") {
     topbar.style.display = "flex";
-    modeToggle.style.display = "none"; // shown when panorama opens
+    modeToggle.style.display = "none";
     initMapPage();
+  } else if (state.route === "welcome") {
+    topbar.style.display = state.loggedIn ? "flex" : "none";
+    modeToggle.style.display = "none";
+    loadMyDesigns();
+  } else if (state.route === "community") {
+    topbar.style.display = "flex";
+    modeToggle.style.display = "none";
+    renderCommunity();
   } else {
     topbar.style.display = "none";
     modeToggle.style.display = "none";
   }
-  if (state.route === "community") renderCommunity();
 }
 
 // ═══════════════════════════════════════
@@ -584,16 +744,23 @@ let allPoints = [];
 window.allPoints = allPoints;
 
 function initMapPage() {
-  if (mapInit) { mainMap.invalidateSize(); mainMap.setView([22.595,113.965],16); return; }
+  var CAMPUS_BOUNDS = [[22.5920, 113.9610], [22.5978, 113.9682]];
+  var CAMPUS_CENTER = [22.59496, 113.96463];
+
+  if (mapInit) { mainMap.invalidateSize(); mainMap.fitBounds(CAMPUS_BOUNDS); return; }
   mapInit = true;
 
-  // Wait for layout to ensure container has dimensions
   requestAnimationFrame(() => {
-    mainMap = L.map("map-main", { zoomControl:true, attributionControl:true }).setView([22.595,113.965],16);
+    mainMap = L.map("map-main", {
+      zoomControl: true,
+      attributionControl: true,
+      maxBounds: [[22.59, 113.958], [22.599, 113.972]],
+      minZoom: 14,
+      maxZoom: 19
+    }).fitBounds(CAMPUS_BOUNDS);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution:"&copy; OpenStreetMap" }).addTo(mainMap);
 
-    // Minimap
-    minimapInstance = L.map("minimap", { zoomControl:false, attributionControl:false, dragging:true, scrollWheelZoom:false }).setView([22.595,113.965],15);
+    minimapInstance = L.map("minimap", { zoomControl:false, attributionControl:false, dragging:true, scrollWheelZoom:false, maxBounds:[[22.59,113.958],[22.599,113.972]], minZoom:14, maxZoom:18 }).setView(CAMPUS_CENTER, 16);
     window._minimapInstance = minimapInstance;
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(minimapInstance);
     minimapInstance.on("click", closePano);
@@ -625,9 +792,18 @@ function setMode(mode) {
   document.getElementById("mode-design").classList.toggle("active", mode==="design");
   if (mode === "design" && state.currentPoint) {
     document.getElementById("agent-sidebar").classList.add("open");
+    // Hide map controls and minimap in design mode
+    document.getElementById("pano-controls").classList.remove("show");
+    document.getElementById("minimap").classList.remove("show");
+    try { clearNavSprites(); } catch(e) {}
     startAgent();
   } else {
     document.getElementById("agent-sidebar").classList.remove("open");
+    // Show controls back in explore mode if pano is open
+    if (state.currentPoint) {
+      document.getElementById("pano-controls").classList.add("show");
+      document.getElementById("minimap").classList.add("show");
+    }
   }
 }
 window.setMode = setMode;
@@ -699,18 +875,195 @@ function compilePrompt(selections) {
   return parts.join(" ");
 }
 
-function startAgent() {
+// Safely reset gen-overlay to a clean hidden state
+function resetGenOverlay() {
+  try { var go = document.getElementById("gen-overlay"); go.classList.remove("show"); go.style.display = "none"; } catch(e) {}
+  try { document.getElementById("gen-timer").textContent = "0s"; } catch(e) {}
+  try { document.getElementById("gen-prompt-disp").textContent = ""; } catch(e) {}
+  try { var cb = document.getElementById("gen-cancel-btn"); cb.style.display = ""; cb.textContent = "取消"; cb.onclick = cancelGeneration; } catch(e) {}
+  try { document.getElementById("gen-result-actions").style.display = "none"; } catch(e) {}
+}
+
+// When showing gen-overlay, use this instead of just adding class
+function showGenOverlay() {
+  try { var go = document.getElementById("gen-overlay"); go.style.display = "flex"; go.classList.add("show"); } catch(e) {}
+}
+function safeSet(elId, prop, val) { try { document.getElementById(elId)[prop] = val; } catch(e) {} }
+function safeStyle(elId, prop, val) { try { document.getElementById(elId).style[prop] = val; } catch(e) {} }
+
+async function startAgent() {
+  state.genResult = null;
+  state.genProjectId = null;
+  resetGenOverlay();
+  safeStyle("gen-result-actions", "display", "none");
+  safeSet("agent-chat", "innerHTML", "");
+  safeSet("agent-options", "innerHTML", "");
+  safeStyle("agent-confirm", "display", "none");
+  safeStyle("agent-input-row", "display", "none");
+
+  // Stop any background project polling timers
+  Object.keys(state.activeProjects).forEach(pid => {
+    try {
+      if (state.activeProjects[pid]._timer) {
+        clearInterval(state.activeProjects[pid]._timer);
+        state.activeProjects[pid]._timer = null;
+      }
+    } catch(e) {}
+  });
+
+  // Try LLM agent first
+  if (state.useLLM) {
+    try {
+      var chat = document.getElementById("agent-chat");
+      chat.innerHTML = `<div class="agent-loading">
+        <div class="agent-loading-spinner"></div>
+        <div class="agent-loading-text">你的专属设计助手<span class="agent-loading-dots"></span>正在赶来的路上</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.3);">正在分析全景图场景，为你构思创意方向</div>
+      </div>`;
+      const resp = await fetch("/api/agent/chat", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({action:"start", panorama_url: state.currentPoint.image_url, session_id:"", message:""})
+      });
+      if (resp.status === 503) { state.useLLM = false; startAgentFallback(); return; }
+      const data = await resp.json();
+      if (data.error) { console.warn("LLM agent error:", data.error); state.useLLM = false; startAgentFallback(); return; }
+      chat.innerHTML = "";
+      state.agentSessionId = data.session_id;
+      state.agentPhase = data.phase;
+      state.agentRound = data.round;
+      renderAgentMessage(data.agent_text);
+      updateAgentPhase(data.phase, data.options);
+    } catch(e) { console.warn("LLM agent failed:", e); state.useLLM = false; startAgentFallback(); }
+  } else {
+    startAgentFallback();
+  }
+}
+
+function startAgentFallback() {
   state.designSelections = { style:null, color:null, elements:null, atmosphere:null };
   state.designRound = 1;
   state.genResult = null;
-  document.getElementById("gen-result-actions").style.display = "none";
-  document.getElementById("gen-overlay").classList.remove("show");
-  document.getElementById("agent-generate-btn").disabled = true;
-  document.getElementById("agent-generate-btn").textContent = t("agent_btn_generate");
-  document.getElementById("prompt-text").textContent = t("agent_prompt_empty");
-  document.getElementById("system-prompt-input").value = "";
-  renderRound();
+  resetGenOverlay();
+  // Use chat-based UI instead of old card-based UI
+  const chat = document.getElementById("agent-chat");
+  if (chat) {
+    chat.innerHTML = `<div class="chat-msg agent">AI 设计助手暂不可用（LLM 未配置或连接失败）。<br><br>请检查 .env 中的 LLM_API_KEY 等配置。</div>`;
+  }
+  try { renderRound(); } catch(e) { console.warn("Fallback renderRound failed:", e); }
 }
+
+async function callAgent(action, message) {
+  const resp = await fetch("/api/agent/chat", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({action, panorama_url: state.currentPoint?.image_url||"", session_id: state.agentSessionId, message})
+  });
+  if (!resp.ok) { const d = await resp.json(); throw new Error(d.error||"Agent error"); }
+  return resp.json();
+}
+
+function renderAgentMessage(text) {
+  const chat = document.getElementById("agent-chat");
+  const div = document.createElement("div");
+  div.className = "chat-msg agent";
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function renderPlayerMessage(text) {
+  const chat = document.getElementById("agent-chat");
+  const div = document.createElement("div");
+  div.className = "chat-msg player";
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function updateAgentPhase(phase, options) {
+  state.agentPhase = phase;
+  const confirmDiv = document.getElementById("agent-confirm");
+  const inputRow = document.getElementById("agent-input-row");
+  const optsDiv = document.getElementById("agent-options");
+  optsDiv.innerHTML = "";  // No more option buttons
+  confirmDiv.style.display = "none";
+
+  // Always show text input for free-text interaction
+  inputRow.style.display = "flex";
+  var inp = inputRow.querySelector("input");
+  if (phase === "confirming") {
+    inp.placeholder = "输入你的修改想法...";
+    confirmDiv.style.display = "flex";
+  } else {
+    inp.placeholder = "输入你的设计想法...";
+  }
+}
+
+async function handleAgentOption(text) {
+  renderPlayerMessage(text);
+  document.getElementById("agent-options").innerHTML = "";
+  try {
+    const data = await callAgent("reply", text);
+    state.agentRound = data.round;
+    renderAgentMessage(data.agent_text);
+    updateAgentPhase(data.phase, data.options);
+  } catch(e) { renderAgentMessage("❌ Agent error: "+e.message); }
+}
+
+async function agentConfirm() {
+  document.getElementById("agent-confirm").style.display = "none";
+  document.getElementById("agent-input-row").style.display = "none";
+  try {
+    const data = await callAgent("confirm", "");
+    state.compiledPrompt = data.final_prompt;
+    state.systemPrompt = data.final_prompt;
+    renderAgentMessage(data.agent_text);
+    startGenerationWithPrompt(data.final_prompt);
+  } catch(e) { renderAgentMessage("❌ Confirm error: "+e.message); }
+}
+
+async function agentRevise() {
+  const input = document.getElementById("agent-input").value.trim();
+  const msg = input || "我想调整设计概念";
+  document.getElementById("agent-input").value = "";
+  renderPlayerMessage("继续修改: "+msg);
+  document.getElementById("agent-confirm").style.display = "none";
+  document.getElementById("agent-input-row").style.display = "none";
+  try {
+    const data = await callAgent("revise", msg);
+    state.agentRound = data.round;
+    renderAgentMessage(data.agent_text);
+    updateAgentPhase(data.phase, data.options);
+  } catch(e) { renderAgentMessage("❌ Revise error: "+e.message); }
+}
+
+async function agentSendInput() {
+  const input = document.getElementById("agent-input");
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = "";
+  renderPlayerMessage(msg);
+  document.getElementById("agent-options").innerHTML = "";
+  document.getElementById("agent-confirm").style.display = "none";
+  document.getElementById("agent-input-row").style.display = "none";
+  try {
+    const action = state.agentPhase === "confirming" ? "revise" : "reply";
+    const data = await callAgent(action, msg);
+    state.agentRound = data.round;
+    renderAgentMessage(data.agent_text);
+    updateAgentPhase(data.phase, data.options);
+  } catch(e) { renderAgentMessage("❌ Agent error: "+e.message); }
+}
+window.agentConfirm = agentConfirm;
+window.agentRevise = agentRevise;
+window.agentSendInput = agentSendInput;
+
+function startGenerationWithPrompt(prompt) {
+  state.compiledPrompt = prompt;
+  state.systemPrompt = prompt;
+  document.getElementById("gen-result-actions").style.display = "none";
+  startGeneration();
+}
+
 
 function renderRound() {
   const r = state.designRound - 1;
@@ -751,40 +1104,57 @@ function selectOption(cat, optId) {
 }
 
 // ═══════════════════════════════════════
-//  Generation + Polling
+//  Generation + Projects (background)
 // ═══════════════════════════════════════
 async function startGeneration() {
-  const sysPrompt = document.getElementById("system-prompt-input").value.trim() || state.compiledPrompt;
-  const ov = document.getElementById("gen-overlay");
-  ov.classList.add("show");
+  const sysInput = document.getElementById("system-prompt-input");
+  const sysPrompt = (sysInput ? sysInput.value.trim() : "") || state.compiledPrompt;
+  if (!sysPrompt) return;
+
+  showGenOverlay();
   document.getElementById("gen-prompt-disp").textContent = sysPrompt.substring(0,200)+"...";
   document.getElementById("gen-result-actions").style.display = "none";
+  document.getElementById("gen-timer").textContent = "提交中...";
+  document.getElementById("gen-cancel-btn").style.display = "none";
 
-  // Timer
-  let secs = 0;
-  state.genTimer = setInterval(()=>{ secs++; document.getElementById("gen-timer").textContent = secs+"s"; }, 1000);
-
-  // Fetch current panorama as blob, then submit
+  // Build form data
   const formData = new FormData();
   formData.append("prompt", sysPrompt);
   formData.append("size", "auto");
-
   if (state.currentPoint) {
+    formData.append("point_id", state.currentPoint.id||"");
+    formData.append("point_lat", String(state.currentPoint.lat||""));
+    formData.append("point_lon", String(state.currentPoint.lon||""));
+    formData.append("panorama_url", state.currentPoint.image_url||"");
     try {
       const blob = await fetch(state.currentPoint.image_url).then(r=>r.blob());
-      const file = new File([blob], "panorama.jpg", {type:"image/jpeg"});
-      formData.append("file", file);
+      formData.append("file", new File([blob], "panorama.jpg", {type:"image/jpeg"}));
     } catch(e) { console.warn("Could not attach panorama image:", e); }
   }
+  formData.append("design_summary", state.compiledPrompt||"");
 
   try {
-    const resp = await fetch("/api/generate", { method:"POST", body:formData });
-    const data = await resp.json();
-    if (data.error) { stopGenTimer(); ov.classList.remove("show"); alert(data.error); return; }
-    state.genTaskId = data.task_id;
-    startPolling();
+    const resp = await fetch("/api/projects", { method:"POST", body:formData });
+    const project = await resp.json();
+    if (project.error) { resetGenOverlay(); try { document.getElementById("gen-cancel-btn").style.display = ""; } catch(e) {} alert(project.error); return; }
+
+    state.activeProjects[project.id] = project;
+    state.genProjectId = project.id;
+    startProjectPolling(project.id);
+
+    // Update overlay to show background processing message
+    document.getElementById("gen-timer").textContent = "已在后台开始";
+    document.getElementById("gen-prompt-disp").innerHTML = `
+      <div style="text-align:center;line-height:1.8;">
+        <p style="font-size:15px;margin-bottom:8px;">🎨 新的场景生成过程需要 <b>3-5 分钟</b></p>
+        <p style="font-size:13px;color:rgba(255,255,255,.6);">你可以去其他场景继续创作，之后在<b>首页</b>找到你的历史项目</p>
+        <p style="font-size:13px;color:rgba(255,255,255,.6);">点击下方"返回首页"或关闭此窗口即可继续浏览</p>
+      </div>`;
+    document.getElementById("gen-cancel-btn").style.display = "";
+    document.getElementById("gen-cancel-btn").textContent = "返回首页";
+    document.getElementById("gen-cancel-btn").onclick = () => { resetGenOverlay(); navigate("welcome"); };
   } catch(e) {
-    stopGenTimer(); ov.classList.remove("show"); alert("Request failed: "+e.message);
+    resetGenOverlay(); try { document.getElementById("gen-cancel-btn").style.display = ""; } catch(e) {} alert("Request failed: "+e.message);
   }
 }
 
@@ -795,32 +1165,47 @@ function stopGenTimer() {
 function cancelGeneration() {
   stopGenTimer();
   if (state.pollingTimer) { clearInterval(state.pollingTimer); state.pollingTimer = null; }
-  document.getElementById("gen-overlay").classList.remove("show");
+  resetGenOverlay();
+  try { document.getElementById("gen-cancel-btn").style.display = ""; } catch(e) {}
 }
 
-function startPolling() {
-  if (state.pollingTimer) clearInterval(state.pollingTimer);
+function startProjectPolling(projectId) {
+  if (state.activeProjects[projectId]?._timer) clearInterval(state.activeProjects[projectId]._timer);
+
   let attempts = 0;
-  state.pollingTimer = setInterval(async () => {
+  const timer = setInterval(async () => {
     attempts++;
     try {
-      const resp = await fetch(`/api/result/${state.genTaskId}`);
-      const data = await resp.json();
-      if (data.status === "success") {
-        clearInterval(state.pollingTimer); state.pollingTimer = null;
-        stopGenTimer();
-        document.getElementById("gen-overlay").classList.remove("show");
-        document.getElementById("gen-result-actions").style.display = "block";
-        state.genResult = { image_url: data.image_url, prompt: state.systemPrompt };
-        window._loadPanorama(data.image_url); // update the 3D viewer
-      } else if (data.status === "failed") {
-        clearInterval(state.pollingTimer); stopGenTimer();
-        document.getElementById("gen-overlay").classList.remove("show");
-        alert("Generation failed: "+(data.message||"unknown"));
+      const resp = await fetch(`/api/projects/${projectId}/status`);
+      const proj = await resp.json();
+      state.activeProjects[projectId] = proj;
+      if (proj.status === "done") {
+        clearInterval(timer);
+        state.activeProjects[projectId]._timer = null;
+        state.genResult = { image_url: proj.result_url, prompt: proj.prompt };
+        // Only auto-load if user is still waiting on THIS project
+        if (state.genProjectId === projectId) {
+          resetGenOverlay();
+          document.getElementById("gen-result-actions").style.display = "block";
+          document.getElementById("gen-cancel-btn").style.display = "";
+          document.getElementById("gen-cancel-btn").textContent = "取消";
+          document.getElementById("gen-cancel-btn").onclick = cancelGeneration;
+          window._loadPanorama(proj.result_url);
+          state.genProjectId = null;
+          // Update currentPoint for edit/share
+          if (state.currentPoint) {
+            state.currentPoint.image_url_result = proj.result_url;
+          }
+        }
+        // Refresh my designs on welcome page
+        loadMyDesigns();
+      } else if (proj.status === "failed") {
+        clearInterval(timer);
+        state.activeProjects[projectId]._timer = null;
       }
-    } catch(e) { console.warn("Poll error:", e); }
-    if (attempts > 200) { clearInterval(state.pollingTimer); stopGenTimer(); alert("Polling timeout"); }
-  }, 5000);
+    } catch(e) { console.warn("Project poll error:", e); }
+    if (attempts > 200) { clearInterval(timer); }
+  }, 8000);
 }
 
 function editMore() {
@@ -830,70 +1215,61 @@ function editMore() {
 
 async function shareToCommunity() {
   if (!state.genResult) return;
-  stopGenTimer();
-  document.getElementById("gen-overlay").classList.add("show");
-  document.getElementById("gen-timer").textContent = "4K...";
-  document.getElementById("gen-prompt-disp").textContent = t("share_upscaling");
-  document.getElementById("gen-cancel-btn").style.display = "none";
+  const originalUrl = state.genResult.image_url;
+  const prompt = state.genResult.prompt;
 
-  let secs = 0;
-  state.genTimer = setInterval(()=>{ secs++; document.getElementById("gen-timer").textContent = "4K "+secs+"s"; }, 1000);
+  // 1. Immediately create community post with original image
+  const postData = {
+    prompt: prompt,
+    image_url: originalUrl,
+    original_pano: state.currentPoint?.image_url||"",
+    point_id: state.currentPoint?.id||"",
+    selections: state.designSelections,
+  };
+  let postId = null;
+  try {
+    const resp = await fetch("/api/community/posts", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(postData)});
+    const post = await resp.json();
+    postId = post.id;
+  } catch(e) { alert("分享失败: "+e.message); return; }
 
-  // Upscale to 4K
+  // 2. Navigate to community immediately
+  navigate("community");
+
+  // 3. Background 4K upscaling (silent, no overlay)
   const fd = new FormData();
   fd.append("prompt", "提升分辨率到4k，不要改变图像比例");
   fd.append("resolution", "4K");
   fd.append("aspect_ratio", "auto");
   try {
-    const blob = await fetch(state.genResult.image_url).then(r=>r.blob());
+    const blob = await fetch(originalUrl).then(r=>r.blob());
     fd.append("file", new File([blob], "gen.jpg", {type:"image/jpeg"}));
-  } catch(e) {}
+  } catch(e) { return; } // Can't upscale, original stays
 
   try {
     const resp = await fetch("/api/nano/generate", { method:"POST", body:fd });
     const data = await resp.json();
-    if (data.error) { stopGenTimer(); document.getElementById("gen-overlay").classList.remove("show"); alert(data.error); return; }
-    // Poll nano result
+    if (data.error) return; // Silent fail, original stays
     const tid = data.task_id;
     const poll = setInterval(async () => {
-      const r = await fetch(`/api/nano/result/${tid}`);
-      const d = await r.json();
-      if (d.status === "success") {
-        clearInterval(poll); stopGenTimer();
-        document.getElementById("gen-overlay").classList.remove("show");
-        document.getElementById("gen-cancel-btn").style.display = "";
-        // Save to community
-        const post = {
-          id: crypto.randomUUID(), prompt: state.genResult.prompt,
-          image_url: d.image_url || state.genResult.image_url,
-          original_pano: state.currentPoint?.image_url||"",
-          point_id: state.currentPoint?.id||"",
-          selections: {...state.designSelections},
-          timestamp: Date.now(), likes:0, author:"anonymous"
-        };
-        state.communityPosts.unshift(post);
-        savePosts();
-        navigate("community");
-      } else if (d.status === "failed") {
-        clearInterval(poll); stopGenTimer();
-        document.getElementById("gen-overlay").classList.remove("show");
-        document.getElementById("gen-cancel-btn").style.display = "";
-        alert("Upscale failed, sharing original. "+(d.message||""));
-        // Share original anyway
-        const post = {
-          id: crypto.randomUUID(), prompt: state.genResult.prompt,
-          image_url: state.genResult.image_url,
-          original_pano: state.currentPoint?.image_url||"",
-          point_id: state.currentPoint?.id||"",
-          selections: {...state.designSelections},
-          timestamp: Date.now(), likes:0, author:"anonymous"
-        };
-        state.communityPosts.unshift(post);
-        savePosts();
-        navigate("community");
-      }
+      try {
+        const r = await fetch(`/api/nano/result/${tid}`);
+        const d = await r.json();
+        if (d.status === "success" && d.image_url && postId) {
+          clearInterval(poll);
+          // Update community post with 4K image
+          await fetch(`/api/community/posts/${postId}`, {
+            method:"PUT", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({image_url: d.image_url})
+          });
+          // Refresh community view if user is on community page
+          if (state.route === "community") renderCommunity();
+        } else if (d.status === "failed") {
+          clearInterval(poll);
+        }
+      } catch(e) { clearInterval(poll); }
     }, 5000);
-  } catch(e) { stopGenTimer(); document.getElementById("gen-overlay").classList.remove("show"); alert("Share failed: "+e.message); }
+  } catch(e) {} // Silent fail
 }
 
 // ═══════════════════════════════════════
@@ -906,8 +1282,12 @@ function setSort(sort) {
   renderCommunity();
 }
 
-function renderCommunity() {
+async function renderCommunity() {
   const grid = document.getElementById("community-grid");
+  try {
+    const resp = await fetch("/api/community/posts");
+    state.communityPosts = await resp.json();
+  } catch(e) { state.communityPosts = []; }
   let posts = [...state.communityPosts];
   if (state.communitySort === "hot") posts.sort((a,b)=>b.likes-a.likes);
   else posts.sort((a,b)=>b.timestamp-a.timestamp);
@@ -917,7 +1297,7 @@ function renderCommunity() {
     return;
   }
   grid.innerHTML = posts.map(p => `
-    <div class="community-card" onclick="openCommunityPano('${p.id}')">
+    <div class="community-card" style="position:relative;" data-pano="${p.id}" style="cursor:pointer;">
       <img src="${p.image_url}" alt="design" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22180%22><rect fill=%22%231a1030%22 width=%22300%22 height=%22180%22/><text fill=%22%23aaa%22 x=%22150%22 y=%2295%22 text-anchor=%22middle%22 font-size=%2214%22>Image N/A</text></svg>'">
       <div class="card-body">
         <div class="card-prompt">${p.prompt||""}</div>
@@ -926,8 +1306,125 @@ function renderCommunity() {
           <span class="card-author">${p.author||"anonymous"}</span>
         </div>
       </div>
+      ${state.isAdmin ? `<button data-delete="${p.id}" onclick="event.stopPropagation();if(confirm('确认删除？')){fetch('/api/community/posts/${p.id}',{method:'DELETE'}).then(r=>r.json()).then(d=>{if(d.error)alert(d.error);else location.reload();})}" style="position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;border:2px solid #fff;background:rgba(255,0,0,.85);color:#fff;cursor:pointer;font-size:16px;line-height:1;z-index:10;pointer-events:auto;">×</button>` : ''}
     </div>
   `).join("");
+  // Single delegated click handler on the grid
+  grid.onclick = (e) => {
+    const delBtn = e.target.closest("[data-delete]");
+    if (delBtn) {
+      deletePost(delBtn.dataset.delete);
+      return;
+    }
+    const card = e.target.closest("[data-pano]");
+    if (card) {
+      openCommunityPano(card.dataset.pano);
+    }
+  };
+}
+
+async function loadMyDesigns() {
+  if (!state.loggedIn) return;
+  try {
+    const resp = await fetch("/api/projects");
+    const projects = await resp.json();
+    const section = document.getElementById("my-designs-section");
+    const grid = document.getElementById("my-designs-grid");
+    if (!projects || projects.length === 0) { section.style.display = "none"; return; }
+    section.style.display = "block";
+    // Restart polling for any still-generating projects
+    projects.forEach(p => {
+      if (p.status === "generating" && !state.activeProjects[p.id]?._timer) {
+        state.activeProjects[p.id] = p;
+        startProjectPolling(p.id);
+      }
+    });
+    grid.innerHTML = projects.slice(0, 8).map(p => {
+      const isDone = p.status === "done";
+      const statusBadge = isDone
+        ? `<span style="position:absolute;top:6px;right:6px;background:#22c55e;color:#fff;font-size:10px;padding:2px 8px;border-radius:8px;z-index:2;">已完成</span>`
+        : `<span style="position:absolute;top:6px;right:6px;background:rgba(234,179,8,.9);color:#000;font-size:10px;padding:2px 8px;border-radius:8px;z-index:2;animation:pulse 1.5s ease-in-out infinite;">生成中</span>`;
+      const imgSrc = isDone ? p.result_url : p.panorama_url;
+      const onclick = isDone
+        ? `event.stopPropagation();viewProjectResult('${p.id}','${p.result_url}','${(p.point_lat||'')}','${(p.point_lon||'')}')`
+        : `event.stopPropagation();showProjectProgress('${p.id}')`;
+      return `
+        <div style="position:relative;border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.08);transition:all .2s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='rgba(255,255,255,.08)'" onclick="${onclick}">
+          <img src="${imgSrc}" style="width:100%;height:100px;object-fit:cover;" loading="lazy" onerror="this.style.display='none'">
+          ${statusBadge}
+          <div style="padding:8px;font-size:11px;color:var(--text2);">${(p.prompt||"").substring(0,40)}...</div>
+        </div>`;
+    }).join("");
+  } catch(e) {}
+}
+
+async function viewProjectResult(projectId, resultUrl, lat, lon) {
+  // Fetch full project data from backend
+  let proj = state.activeProjects[projectId];
+  if (!proj || !proj.design_summary) {
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/status`);
+      proj = await resp.json();
+      state.activeProjects[projectId] = proj;
+    } catch(e) { proj = proj || {}; }
+  }
+  state.genResult = { image_url: resultUrl, prompt: proj?.prompt||"" };
+  state.mode = "explore";
+  const ptLat = parseFloat(lat) || 22.59496;
+  const ptLon = parseFloat(lon) || 113.96463;
+  navigate("map");
+  setTimeout(() => {
+    openPano(resultUrl, projectId, ptLat, ptLon);
+    // After openPano resets gen-overlay, populate agent sidebar with project context
+    setTimeout(() => {
+      const chat = document.getElementById("agent-chat");
+      const summary = proj?.design_summary || proj?.prompt || "";
+      chat.innerHTML = `
+        <div class="chat-msg agent">
+          <div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:6px;">📋 设计概念</div>
+          <div style="font-size:13px;line-height:1.6;">${summary.substring(0, 300)}</div>
+        </div>
+        <div class="chat-msg agent">
+          <div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:6px;">🎨 生成提示词</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.7);line-height:1.5;">${(proj?.prompt||"").substring(0, 200)}</div>
+        </div>`;
+      chat.scrollTop = chat.scrollHeight;
+      // Restore compiledPrompt for editMore
+      state.compiledPrompt = proj?.prompt || "";
+      state.systemPrompt = proj?.prompt || "";
+      // Show agent sidebar and result actions
+      document.getElementById("agent-sidebar").classList.add("open");
+      document.getElementById("gen-result-actions").style.display = "block";
+      // Set up the panorama as currentPoint for edit/share
+      if (state.currentPoint) {
+        state.currentPoint.image_url = resultUrl;
+      }
+    }, 300);
+  }, 500);
+}
+
+function showProjectProgress(projectId) {
+  const proj = state.activeProjects[projectId];
+  showGenOverlay();
+  document.getElementById("gen-cancel-btn").style.display = "";
+  document.getElementById("gen-cancel-btn").textContent = "关闭";
+  document.getElementById("gen-cancel-btn").onclick = () => resetGenOverlay();
+  document.getElementById("gen-result-actions").style.display = "none";
+  if (proj && proj.status === "done") {
+    resetGenOverlay();
+    if (proj.result_url) viewProjectResult(projectId, proj.result_url, proj.point_lat, proj.point_lon);
+    return;
+  }
+  document.getElementById("gen-timer").textContent = "生成中...";
+  document.getElementById("gen-prompt-disp").innerHTML = `
+    <div style="text-align:center;line-height:1.8;">
+      <p style="font-size:15px;">🎨 场景正在生成中，预计还需 <b>3-5 分钟</b></p>
+      <p style="font-size:13px;color:rgba(255,255,255,.6);">完成后会自动出现在这里</p>
+    </div>`;
+  // Ensure polling is active
+  if (!state.activeProjects[projectId]?._timer && proj) {
+    startProjectPolling(projectId);
+  }
 }
 </script>
 
@@ -1040,7 +1537,7 @@ function createNavTex(dist){
   ctx.font="bold 18px sans-serif";ctx.fillText(Math.round(dist)+"m",r+14,r+50);
   const tex=new THREE.CanvasTexture(c);tex.minFilter=THREE.LinearFilter;return tex;
 }
-function clearNavSprites(){navSprites.forEach(s=>{if(s.parent)s.parent.remove(s);if(s.material)s.material.dispose();});navSprites=[];}
+function clearNavSprites(){navSprites.forEach(s=>{if(s.parent)s.parent.remove(s);if(s.material)s.material.dispose();});navSprites=[];}window.clearNavSprites=clearNavSprites;
 function buildNavSprites(nearby){
   clearNavSprites();if(!panoScene)return;
   const R=48;
@@ -1073,29 +1570,36 @@ function syncMinimap(lat,lon){
 function openPano(url,id,lat,lon){
   try {
   console.log("openPano called:", id, url);
+  resetGenOverlay();
+  state.genProjectId = null;
+
   initPano();
   window.state.currentPoint = {image_url:url,id,lat,lon};
   document.getElementById("pano-layer").classList.add("active");
-  document.getElementById("pano-controls").classList.add("show");
-  document.getElementById("pano-close-btn").classList.add("show");
-  document.getElementById("minimap").classList.add("show");
   document.getElementById("mode-toggle").style.display = "flex";
+
+  const isDesign = window.state.mode === "design";
+  if (!isDesign) {
+    document.getElementById("pano-controls").classList.add("show");
+    document.getElementById("minimap").classList.add("show");
+    syncMinimap(lat||22.595,lon||113.965);
+  }
+  document.getElementById("pano-close-btn").classList.add("show");
   document.getElementById("topbar").classList.add("transparent");
   document.getElementById("pano-id-tag").textContent = id||"";
   document.getElementById("pano-id-tag").classList.add("show");
   panoState.lat=0;panoState.lon=0;panoState.fov=75;panoState.autoRotate=true;
   document.getElementById("btn-auto").classList.add("active");
   updatePanoCam();loadPanorama(url);resizePano();
-  syncMinimap(lat||22.595,lon||113.965);
 
   // Show agent sidebar if in design mode
-  if (window.state.mode === "design") {
+  if (isDesign) {
     document.getElementById("agent-sidebar").classList.add("open");
     startAgent();
   }
 
-  // Build nav sprites
-  if (window.allPoints && window.allPoints.length>0) {
+  // Build nav sprites (only in explore mode)
+  if (!isDesign && window.allPoints && window.allPoints.length>0) {
     const nearby = window.allPoints
       .filter(p=>p.id!==(window.state.currentPoint?window.state.currentPoint.id:""))
       .map(p=>({...p,dist:haversine(lat||22.595,lon||113.965,p.lat,p.lon),brg:bearing(lat||22.595,lon||113.965,p.lat,p.lon)}))
@@ -1112,6 +1616,7 @@ function closePano(){
   document.getElementById("pano-controls").classList.remove("show");
   document.getElementById("pano-close-btn").classList.remove("show");
   document.getElementById("minimap").classList.remove("show");
+  document.getElementById("nav-sprites")?.remove();
   document.getElementById("mode-toggle").style.display = "none";
   document.getElementById("topbar").classList.remove("transparent");
   document.getElementById("pano-id-tag").classList.remove("show");
@@ -1120,6 +1625,7 @@ function closePano(){
   document.getElementById("agent-sidebar").classList.remove("open");
   clearNavSprites();hoveredSprite=null;
   window.state.currentPoint=null;
+  window.state.mode = "explore";
   panoState.autoRotate=true;
   document.getElementById("btn-auto").classList.add("active");
   cancelGeneration();
@@ -1194,7 +1700,7 @@ window.closeAgentSidebar = closeAgentSidebar;
 //  Community Panorama Viewer
 // ═══════════════════════════════════════
 let commRenderer=null,commScene=null,commCamera=null,commMat=null,commAnimId=null;
-const commState = window.state.commPanoState;
+const commState = {lat:0,lon:0,fov:75,autoRotate:true,isDragging:false,prevMouse:{x:0,y:0}};
 const commCanvas = document.getElementById("comm-pano-canvas");
 
 function initCommPano(){
@@ -1228,8 +1734,9 @@ function animateComm(){
 function openCommunityPano(postId){
   const post = window.state.communityPosts.find(p=>p.id===postId);
   if(!post)return;
-  initCommPano();resizeComm();
+  initCommPano();
   document.getElementById("community-pano-overlay").classList.add("show");
+  resizeComm();
   document.getElementById("comm-pano-title").textContent = post.point_id||"Community Design";
   document.getElementById("comm-pano-likes").textContent = "❤️ "+(post.likes||0);
   updateCommLikeBtn(postId);
@@ -1244,18 +1751,28 @@ function openCommunityPano(postId){
 }
 window.openCommunityPano = openCommunityPano;
 
+async function deletePost(id) {
+  if (!confirm("确认删除该作品？")) return;
+  try {
+    const resp = await fetch(`/api/community/posts/${id}`, {method:"DELETE"});
+    const data = await resp.json();
+    if (data.error) { alert(data.error); return; }
+    renderCommunity();
+  } catch(e) { alert("删除失败: "+e.message); }
+}
+
 function closeCommunityPano(){
   document.getElementById("community-pano-overlay").classList.remove("show");
   window._commPostId=null;
 }
 window.closeCommunityPano = closeCommunityPano;
 
-function toggleLike(){
+async function toggleLike(){
   const pid=window._commPostId;if(!pid)return;
   const post=window.state.communityPosts.find(p=>p.id===pid);if(!post)return;
-  if(window.state.userLikes[pid]){window.state.userLikes[pid]=false;post.likes=Math.max(0,post.likes-1);}
-  else{window.state.userLikes[pid]=true;post.likes++;}
-  savePosts();saveLikes();
+  const liked=window.state.userLikes[pid];
+  const url=liked?`/api/community/posts/${pid}/unlike`:`/api/community/posts/${pid}/like`;
+  try{const r=await fetch(url,{method:"POST"});const d=await r.json();if(d.error)return;window.state.userLikes[pid]=!liked;post.likes=d.likes;}catch(e){}
   document.getElementById("comm-pano-likes").textContent="❤️ "+(post.likes||0);
   updateCommLikeBtn(pid);
   renderCommunity();
@@ -1292,10 +1809,14 @@ commCanvas.addEventListener("wheel",(e)=>{
 },{passive:false});
 commCanvas.addEventListener("contextmenu",(e)=>e.preventDefault());
 
-// Start
-if (window.location.hash) {
-  const r = window.location.hash.replace("#","") || "welcome";
-  window.state.route = r;
-}
-renderPage();
+// Start — check auth first
+(async () => {
+  await checkAuth();
+  if (!state.loggedIn) { state.route = "auth"; renderPage(); return; }
+  if (window.location.hash) {
+    const r = window.location.hash.replace("#","") || "welcome";
+    state.route = r;
+  }
+  renderPage();
+})();
 </script>

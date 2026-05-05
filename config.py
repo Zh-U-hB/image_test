@@ -26,3 +26,8 @@ VALID_SIZES = [
 # NanoBanana2 specific
 NANO_RESOLUTIONS = ["1K", "2K", "4K"]
 NANO_ASPECT_RATIOS = ["auto", "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5", "21:9"]
+
+# OpenAI-compatible LLM (多模态对话 Agent)
+LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o")

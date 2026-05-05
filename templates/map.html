@@ -181,8 +181,14 @@
     const idTag = $("pano-id-tag"), btnAuto = $("btn-auto");
 
     // ── Main map ────────────────────────
-    const mainMap = L.map("map", { zoomControl: true, attributionControl: true })
-        .setView([22.595, 113.965], 16);
+    var CAMPUS_BOUNDS = [[22.5920, 113.9610], [22.5978, 113.9682]];
+    var CAMPUS_CENTER = [22.59496, 113.96463];
+
+    const mainMap = L.map("map", {
+      zoomControl: true, attributionControl: true,
+      maxBounds: [[22.59, 113.958], [22.599, 113.972]],
+      minZoom: 14, maxZoom: 19
+    }).fitBounds(CAMPUS_BOUNDS);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap"
     }).addTo(mainMap);
@@ -191,8 +197,10 @@
     const minimap = L.map("minimap", {
         zoomControl: false, attributionControl: false,
         dragging: true, scrollWheelZoom: false,
-        doubleClickZoom: false, touchZoom: true
-    }).setView([22.595, 113.965], 15);
+        doubleClickZoom: false, touchZoom: true,
+        maxBounds: [[22.59, 113.958], [22.599, 113.972]],
+        minZoom: 14, maxZoom: 18
+    }).setView(CAMPUS_CENTER, 16);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {}).addTo(minimap);
     let minimapMarker = null;
 
