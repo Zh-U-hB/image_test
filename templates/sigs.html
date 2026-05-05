@@ -788,19 +788,21 @@ function initMapPage() {
   if (mapInit) { mainMap.invalidateSize(); mainMap.fitBounds(CAMPUS_BOUNDS); return; }
   mapInit = true;
 
+  var IMG_BOUNDS = [[22.59880, 113.95844], [22.59119, 113.96942]];
+
   requestAnimationFrame(() => {
     mainMap = L.map("map-main", {
       zoomControl: true,
-      attributionControl: true,
-      maxBounds: [[22.59, 113.958], [22.599, 113.972]],
-      minZoom: 14,
-      maxZoom: 19
+      attributionControl: false,
+      maxBounds: [[22.5995, 113.9575], [22.590, 113.972]],
+      minZoom: 15,
+      maxZoom: 18
     }).fitBounds(CAMPUS_BOUNDS);
-    L.tileLayer("https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", { attribution:"&copy; CartoDB" }).addTo(mainMap);
+    L.imageOverlay("/assets/campus_map.jpg", IMG_BOUNDS, { opacity: 1 }).addTo(mainMap);
 
-    minimapInstance = L.map("minimap", { zoomControl:false, attributionControl:false, dragging:true, scrollWheelZoom:false, maxBounds:[[22.59,113.958],[22.599,113.972]], minZoom:14, maxZoom:18 }).setView(CAMPUS_CENTER, 16);
+    minimapInstance = L.map("minimap", { zoomControl:false, attributionControl:false, dragging:true, scrollWheelZoom:false, maxBounds:[[22.5995,113.9575],[22.590,113.972]], minZoom:15, maxZoom:18 }).setView(CAMPUS_CENTER, 16);
     window._minimapInstance = minimapInstance;
-    L.tileLayer("https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", { attribution:"&copy; CartoDB" }).addTo(minimapInstance);
+    L.imageOverlay("/assets/campus_map.jpg", IMG_BOUNDS, { opacity: 1 }).addTo(minimapInstance);
     minimapInstance.on("click", closePano);
 
     loadMapPoints();

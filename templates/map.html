@@ -183,25 +183,24 @@
     // ── Main map ────────────────────────
     var CAMPUS_BOUNDS = [[22.5920, 113.9610], [22.5978, 113.9682]];
     var CAMPUS_CENTER = [22.59496, 113.96463];
+    var IMG_BOUNDS = [[22.59880, 113.95844], [22.59119, 113.96942]];
 
     const mainMap = L.map("map", {
-      zoomControl: true, attributionControl: true,
-      maxBounds: [[22.59, 113.958], [22.599, 113.972]],
-      minZoom: 14, maxZoom: 19
+      zoomControl: true, attributionControl: false,
+      maxBounds: [[22.5995, 113.9575], [22.590, 113.972]],
+      minZoom: 15, maxZoom: 18
     }).fitBounds(CAMPUS_BOUNDS);
-    L.tileLayer("https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", {
-        attribution: "&copy; CartoDB"
-    }).addTo(mainMap);
+    L.imageOverlay("/assets/campus_map.jpg", IMG_BOUNDS, { opacity: 1 }).addTo(mainMap);
 
     // ── Minimap (separate Leaflet instance) ──
     const minimap = L.map("minimap", {
         zoomControl: false, attributionControl: false,
         dragging: true, scrollWheelZoom: false,
         doubleClickZoom: false, touchZoom: true,
-        maxBounds: [[22.59, 113.958], [22.599, 113.972]],
-        minZoom: 14, maxZoom: 18
+        maxBounds: [[22.5995, 113.9575], [22.590, 113.972]],
+        minZoom: 15, maxZoom: 18
     }).setView(CAMPUS_CENTER, 16);
-    L.tileLayer("https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", {}).addTo(minimap);
+    L.imageOverlay("/assets/campus_map.jpg", IMG_BOUNDS, { opacity: 1 }).addTo(minimap);
     let minimapMarker = null;
 
     minimap.on("click", closePano);
