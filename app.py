@@ -244,6 +244,12 @@ def serve_static(subpath):
     return send_from_directory(static_dir, subpath)
 
 
+@app.route("/assets/<path:subpath>")
+def serve_assets(subpath):
+    assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+    return send_from_directory(assets_dir, subpath)
+
+
 @app.route("/convert")
 def convert_page():
     return render_template("convert.html")

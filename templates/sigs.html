@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>你的清华SIGS</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="/assets/leaflet.css" />
 <style>
 :root {
   --accent: #7c3aed; --accent2: #a78bfa; --bg: #0a0a0f;
@@ -513,7 +513,7 @@ html, body { height:100%; overflow-x:hidden; font-family:-apple-system,BlinkMacS
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/assets/leaflet.js"></script>
 <script>
 // ═══════════════════════════════════════
 //  i18n
@@ -796,11 +796,11 @@ function initMapPage() {
       minZoom: 14,
       maxZoom: 19
     }).fitBounds(CAMPUS_BOUNDS);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution:"&copy; OpenStreetMap" }).addTo(mainMap);
+    L.tileLayer("https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", { attribution:"&copy; CartoDB" }).addTo(mainMap);
 
     minimapInstance = L.map("minimap", { zoomControl:false, attributionControl:false, dragging:true, scrollWheelZoom:false, maxBounds:[[22.59,113.958],[22.599,113.972]], minZoom:14, maxZoom:18 }).setView(CAMPUS_CENTER, 16);
     window._minimapInstance = minimapInstance;
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(minimapInstance);
+    L.tileLayer("https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", { attribution:"&copy; CartoDB" }).addTo(minimapInstance);
     minimapInstance.on("click", closePano);
 
     loadMapPoints();
