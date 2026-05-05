@@ -1849,22 +1849,38 @@ function resetCommView(){commState.lat=0;commState.lon=0;commState.fov=75;commSt
 window.resetCommView = resetCommView;
 
 // Community pano mouse/touch
-commCanvas.addEventListener("mousedown",(e)=>{
-  if(e.button!==0)return;
-  commState.isDragging=true;commState.autoRotate=false;commState.prevMouse={x:e.clientX,y:e.clientY};
+function commDragStart(cx, cy) {
+  commState.isDragging = true; commState.autoRotate = false;
+  commState.prevMouse = {x: cx, y: cy};
+}
+function commDragMove(cx, cy) {
+  if (!commState.isDragging || !commCamera) return;
+  const dx = cx - commState.prevMouse.x, dy = cy - commState.prevMouse.y;
+  commState.lon += dx * .003; commState.lat += dy * .003;
+  commState.lat = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, commState.lat));
+  commState.prevMouse = {x: cx, y: cy}; updateCommCam();
+}
+function commDragEnd() { commState.isDragging = false; }
+
+commCanvas.addEventListener("mousedown", (e) => {
+  if (e.button !== 0) return;
+  commDragStart(e.clientX, e.clientY);
 });
-window.addEventListener("mousemove",(e)=>{
-  if(!commState.isDragging||!commCamera)return;
-  const dx=e.clientX-commState.prevMouse.x,dy=e.clientY-commState.prevMouse.y;
-  commState.lon+=dx*.003;commState.lat+=dy*.003;
-  commState.lat=Math.max(-Math.PI/2.2,Math.min(Math.PI/2.2,commState.lat));
-  commState.prevMouse={x:e.clientX,y:e.clientY};updateCommCam();
-});
-window.addEventListener("mouseup",()=>{commState.isDragging=false;});
-commCanvas.addEventListener("wheel",(e)=>{
-  e.preventDefault();commState.fov=Math.max(20,Math.min(120,commState.fov+e.deltaY*.05));updateCommCam();
-},{passive:false});
-commCanvas.addEventListener("contextmenu",(e)=>e.preventDefault());
+window.addEventListener("mousemove", (e) => { commDragMove(e.clientX, e.clientY); });
+window.addEventListener("mouseup", () => { commDragEnd(); });
+
+commCanvas.addEventListener("touchstart", (e) => {
+  if (e.touches.length === 1) { e.preventDefault(); commDragStart(e.touches[0].clientX, e.touches[0].clientY); }
+}, {passive: false});
+commCanvas.addEventListener("touchmove", (e) => {
+  if (commState.isDragging && e.touches.length === 1) { e.preventDefault(); commDragMove(e.touches[0].clientX, e.touches[0].clientY); }
+}, {passive: false});
+commCanvas.addEventListener("touchend", () => { commDragEnd(); });
+
+commCanvas.addEventListener("wheel", (e) => {
+  e.preventDefault(); commState.fov = Math.max(20, Math.min(120, commState.fov + e.deltaY * .05)); updateCommCam();
+}, {passive: false});
+commCanvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
 // Start — check auth first
 (async () => {
