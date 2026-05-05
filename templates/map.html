@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>清华大学深圳国际研究生院 - 校园实景</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/assets/leaflet.css" />
     <style>
         :root {
             --accent: #7c3aed;
@@ -164,7 +164,7 @@
     <!-- Loading -->
     <div id="pano-loading"><div class="pano-spinner"></div><span>加载全景图...</span></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/assets/leaflet.js"></script>
     <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
     </script>
@@ -189,8 +189,8 @@
       maxBounds: [[22.59, 113.958], [22.599, 113.972]],
       minZoom: 14, maxZoom: 19
     }).fitBounds(CAMPUS_BOUNDS);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap"
+    L.tileLayer("https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", {
+        attribution: "&copy; CartoDB"
     }).addTo(mainMap);
 
     // ── Minimap (separate Leaflet instance) ──
@@ -201,7 +201,7 @@
         maxBounds: [[22.59, 113.958], [22.599, 113.972]],
         minZoom: 14, maxZoom: 18
     }).setView(CAMPUS_CENTER, 16);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {}).addTo(minimap);
+    L.tileLayer("https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", {}).addTo(minimap);
     let minimapMarker = null;
 
     minimap.on("click", closePano);
