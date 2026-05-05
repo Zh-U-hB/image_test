@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>你的清华SIGS</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
@@ -11,24 +11,28 @@
   --card-bg: rgba(20,20,30,0.95); --text: #f0f0f5; --text2: #aaa;
   --radius: 14px; --minimap-w: 260px; --minimap-h: 200px;
   --sidebar-w: 400px;
+  --topbar-h: 52px;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+html, body { height:100%; overflow-x:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
 
-.page { position:fixed; inset:0; display:none; z-index:1; }
+.page { position:relative; min-height:100vh; width:100%; display:none; }
 .page.active { display:flex; }
+#page-map { position:fixed; inset:0; } /* map stays fixed fullscreen */
 
 /* ── Auth ─────────────────────────── */
 #page-auth {
   flex-direction:column; align-items:center; justify-content:center;
   background: radial-gradient(ellipse at center, #1a1030 0%, var(--bg) 70%);
+  padding:80px 20px 40px; min-height:100vh;
 }
 
 /* ── Welcome ──────────────────────── */
 #page-welcome {
-  flex-direction:column; align-items:center; justify-content:center;
+  flex-direction:column; align-items:center; justify-content:flex-start;
   background: radial-gradient(ellipse at center, #1a1030 0%, var(--bg) 70%);
   text-align:center; gap:16px;
+  padding:100px 20px 60px; min-height:100vh; overflow-y:auto;
 }
 #page-welcome h1 { font-size:clamp(36px,8vw,64px); font-weight:900; letter-spacing:-2px;
   background:linear-gradient(135deg,#a78bfa,#7c3aed,#4c1d95); -webkit-background-clip:text;
@@ -258,11 +262,11 @@ html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSys
 .gen-prompt-preview { font-size:13px; color:var(--text2); max-width:400px; text-align:center; line-height:1.5; }
 
 /* ── Community ──────────────────────── */
-#page-community { flex-direction:column; }
+#page-community { flex-direction:column; padding-top:var(--topbar-h); min-height:100vh; }
 #community-topbar {
-  padding:16px 20px; display:flex; align-items:center; gap:12px;
+  padding:12px 20px; display:flex; align-items:center; gap:12px;
   border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;
-  background:rgba(10,10,15,.95);
+  background:rgba(10,10,15,.95); flex-wrap:wrap;
 }
 #community-topbar h2 { font-size:20px; font-weight:700; }
 #community-topbar .spacer { flex:1; }
@@ -275,8 +279,8 @@ html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSys
 
 #community-grid {
   flex:1; overflow-y:auto; padding:20px;
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
-  gap:16px; align-content:start;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:16px; align-content:start; max-width:1200px; width:100%; margin:0 auto;
 }
 .community-card {
   background:var(--card-bg); border-radius:var(--radius); overflow:hidden;
@@ -322,12 +326,46 @@ html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSys
 .comm-action-btn .like-count { font-size:11px; margin-left:2px; }
 
 /* Responsive */
-@media (max-width:700px) {
-  :root { --sidebar-w:100vw; --minimap-w:150px; --minimap-h:120px; }
+@media (max-width:768px) {
+  :root { --sidebar-w:100vw; --minimap-w:130px; --minimap-h:100px; --topbar-h:44px; }
+  .page { padding-left:12px; padding-right:12px; }
+  #page-map, #page-auth, #page-welcome, #page-community { padding-left:0; padding-right:0; }
+  #page-welcome { padding-top:80px; padding-bottom:40px; }
+  #page-auth { padding-top:60px; }
+  #page-community { padding-top:44px; }
   .btn-group { flex-direction:column; align-items:center; }
   .opt-grid { grid-template-columns:1fr 1fr; }
-  #mode-toggle { top:52px; }
-  .mode-btn { padding:8px 16px; font-size:13px; }
+  #mode-toggle { top:46px; }
+  .mode-btn { padding:8px 14px; font-size:12px; }
+  #topbar { padding:8px 12px; gap:6px; flex-wrap:wrap; }
+  #topbar h2 { font-size:13px; white-space:nowrap; }
+  #topbar .badge { font-size:10px; padding:2px 8px; }
+  #topbar .count { font-size:11px; }
+  #topbar .topbar-btn { font-size:11px; padding:5px 10px; }
+  #community-topbar { padding:10px 12px; gap:8px; }
+  #community-topbar h2 { font-size:16px; }
+  .sort-btn { font-size:11px; padding:5px 12px; }
+  #community-grid { grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; padding:12px; }
+  .community-card img { height:130px; }
+  .community-card .card-body { padding:10px; }
+  .community-card .card-prompt { font-size:11px; }
+  #pano-close-btn { top:8px; right:8px; width:30px; height:30px; font-size:16px; }
+  #pano-controls { bottom:16px; gap:4px; }
+  .pano-btn { width:34px; height:34px; font-size:16px; }
+  #pano-id-tag { top:48px; font-size:11px; }
+  #agent-header { padding:14px; }
+  #agent-header h3 { font-size:15px; }
+  #agent-body { padding:12px; }
+  .settings-panel { min-width:auto; width:90%; max-width:380px; padding:24px; }
+}
+@media (max-width:400px) {
+  #topbar h2 { font-size:11px; }
+  #topbar .topbar-btn { font-size:10px; padding:4px 8px; }
+  #topbar .badge { display:none; }
+  #topbar .count { font-size:10px; }
+  #community-grid { grid-template-columns:1fr 1fr; gap:8px; padding:8px; }
+  .community-card img { height:100px; }
+  #my-designs-grid { grid-template-columns:1fr 1fr !important; }
 }
 </style>
 </head>
@@ -358,9 +396,9 @@ html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSys
     <button class="btn btn-outline" onclick="alert('引导教程即将上线！Tutorial coming soon!')">引导教程</button>
     <button class="btn btn-outline" onclick="toggleSettings()">设置 Settings</button>
   </div>
-  <div id="my-designs-section" style="margin-top:32px;max-width:600px;width:90%;display:none;">
+  <div id="my-designs-section" style="margin-top:32px;max-width:700px;width:90%;display:none;">
     <h3 style="font-size:16px;margin-bottom:12px;color:var(--text2);">我的设计</h3>
-    <div id="my-designs-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;"></div>
+    <div id="my-designs-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;"></div>
   </div>
 </div>
 
