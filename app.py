@@ -136,6 +136,11 @@ def _query_result(task_id):
 
 @app.route("/")
 def index():
+    return render_template("sigs.html")
+
+
+@app.route("/generate")
+def generate_page():
     return render_template("index.html")
 
 
