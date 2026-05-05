@@ -353,10 +353,27 @@ html, body { height:100%; overflow-x:hidden; font-family:-apple-system,BlinkMacS
   #pano-controls { bottom:16px; gap:4px; }
   .pano-btn { width:34px; height:34px; font-size:16px; }
   #pano-id-tag { top:48px; font-size:11px; }
-  #agent-header { padding:14px; }
+  #agent-header { padding:12px 14px; }
   #agent-header h3 { font-size:15px; }
   #agent-body { padding:12px; }
   .settings-panel { min-width:auto; width:90%; max-width:380px; padding:24px; }
+  /* Mobile: agent sidebar as bottom half-sheet */
+  #agent-sidebar {
+    top: auto; bottom: 0; left: 0; right: 0;
+    width: 100%; height: 52vh;
+    transform: translateY(100%);
+    border-left: none; border-top: 1px solid rgba(255,255,255,.12);
+    border-radius: 16px 16px 0 0;
+  }
+  #agent-sidebar.open { transform: translateY(0); }
+  /* Drag handle indicator */
+  #agent-header::before {
+    content: ""; display: block;
+    width: 36px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,.3); margin: 0 auto 8px;
+  }
+  #pano-close-btn { top: 8px; right: 8px; width: 30px; height: 30px; font-size: 16px; }
+  #mode-toggle { top: 46px; }
 }
 @media (max-width:400px) {
   #topbar h2 { font-size:11px; }
