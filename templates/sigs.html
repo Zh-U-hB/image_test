@@ -334,7 +334,7 @@ html, body { height:100%; overflow-x:hidden; font-family:-apple-system,BlinkMacS
 .tutorial-spotlight {
   position:fixed; z-index:201; border:3px solid var(--accent);
   border-radius:12px; box-shadow:0 0 0 9999px rgba(0,0,0,.75), 0 0 24px rgba(124,58,237,.5);
-  pointer-events:none; transition:all .35s ease;
+  pointer-events:none; transition:all .35s ease; display:none;
 }
 .tutorial-card {
   position:fixed; z-index:202; background:var(--card-bg); backdrop-filter:blur(20px);
@@ -1944,63 +1944,84 @@ commCanvas.addEventListener("contextmenu", (e) => e.preventDefault());
 // ═══════════════════════════════════════
 const TUTORIAL_STEPS = [
   {
-    target: "#map-main",
-    title: "探索清华SIGS校园",
-    desc: "欢迎来到你的清华SIGS！地图上有 <b>166个实景全景采集点</b>，遍布整个校园。你可以缩放、拖拽来浏览校园全貌。",
-    position: "center"
+    title: "🏫 欢迎来到你的清华SIGS",
+    desc: "这是一个 <b style='color:var(--accent2)'>AI 驱动的校园设计平台</b>。<br><br>🗺️ 地图上有 <b>166 个校园实景采集点</b><br>🎨 用 AI 重新设计你眼中的校园场景<br>👥 与社区分享你的创意作品<br><br>让我们花 1 分钟了解一下吧 👇",
+    position: "center", route: "map"
   },
   {
-    target: "#map-main",
-    title: "进入全景漫游",
-    desc: "点击地图上的<b>紫色标记点</b>，即可进入该位置的真实360°全景视图。试试找一个感兴趣的地点吧！",
+    title: "📍 进入全景视图",
+    desc: "地图上的每个<b style='color:var(--accent2)'>紫色圆点</b>都是一个360°实景采集点。<br><br>点击任意标记即可进入该位置的全景视图。<br><br>👆 试试看，我来帮你打开一个 👇",
+    position: "center", route: "map",
+    onEnter: function() {
+      // Auto-open first available point
+      var pts = window.allPoints || state.mapPoints || [];
+      if (pts.length > 0 && !state.currentPoint) {
+        var p = pts[Math.floor(Math.random() * pts.length)];
+        setTimeout(function(){ window._openPano(p.image_url, p.id, p.lat, p.lon); }, 800);
+      }
+    }
+  },
+  {
+    title: "👀 全景漫游模式",
+    desc: "🖐 <b>拖拽</b>旋转视角 &nbsp;|&nbsp; 🔍 <b>滚动</b>缩放远近<br>↗️ 点击 <b>3D 箭头</b>移动到邻近采集点<br>🗺️ 左下角 <b>小地图</b>帮你定位当前位置<br><br>现在你就在真实的全景场景中了！",
+    target: "#pano-controls", position: "top"
+  },
+  {
+    title: "🎨 AI 设计编辑模式",
+    desc: "看上方中间的<b style='color:var(--accent2)'>模式切换按钮</b>。<br><br>点击 <b>「设计编辑模式」</b>，AI 助手「小清」就会出场，帮你分析场景、讨论设计方案。",
+    target: "#mode-toggle", position: "bottom",
+    onEnter: function() {
+      // Ensure mode toggle is visible
+      if (!state.currentPoint) {
+        var pts = window.allPoints || state.mapPoints || [];
+        if (pts.length > 0) {
+          var p = pts[Math.floor(Math.random() * pts.length)];
+          setTimeout(function(){ window._openPano(p.image_url, p.id, p.lat, p.lon); }, 500);
+        }
+      }
+    }
+  },
+  {
+    title: "🤖 AI 设计助手 · 小清",
+    desc: "切换到设计模式后，小清会：<br><br>1️⃣ 自动分析当前全景场景<br>2️⃣ 提出创意设计方向<br>3️⃣ 通过 <b>5 轮对话</b>细化你的构想<br>4️⃣ 整理设计概念给你确认<br>5️⃣ 调用 AI 生成新的全景图 🎉<br><br>你可以<b>自由输入</b>你的想法，不用选固定选项。",
     position: "center",
-    action: "explore_entry"
+    onEnter: function() {
+      // Auto switch to design mode
+      if (state.currentPoint && state.mode !== "design") {
+        setTimeout(function(){ setMode("design"); }, 600);
+      } else if (!state.currentPoint) {
+        var pts = window.allPoints || state.mapPoints || [];
+        if (pts.length > 0) {
+          var p = pts[Math.floor(Math.random() * pts.length)];
+          setTimeout(function(){
+            window._openPano(p.image_url, p.id, p.lat, p.lon);
+            setTimeout(function(){ setMode("design"); }, 1200);
+          }, 500);
+        }
+      }
+    }
   },
   {
-    target: "#pano-controls",
-    title: "全景漫游模式",
-    desc: "在全景视图中，你可以<b>拖拽旋转视角</b>、<b>滚动缩放</b>。点击3D场景中的<b>箭头</b>可以移动到附近的采集点。右下角小地图帮你定位。",
-    position: "bottom"
+    title: "👥 设计社区",
+    desc: "顶栏右侧的<b style='color:var(--accent2)'>「社区」</b>按钮汇聚了所有同学的设计作品。<br><br>你可以：<br>❤️ 点赞喜欢的作品<br>🔍 查看其他同学的设计全景<br>📤 一键分享自己的生成结果<br><br>4K 超分图会自动后台处理，先发原图不等待。",
+    target: "#community-nav-btn", position: "bottom", route: "map"
   },
   {
-    target: "#mode-design",
-    title: "AI设计编辑模式",
-    desc: "点击顶部的<b>「设计编辑模式」</b>按钮，AI设计助手「小清」将分析你当前的场景，并引导你通过对话来重新设计这个场景。",
-    position: "top"
-  },
-  {
-    target: "#agent-sidebar",
-    title: "AI设计助手 · 小清",
-    desc: "小清会先描述场景，然后和你进行<b>5轮对话</b>来逐步细化你的设计构想。你可以自由输入你的创意，小清会帮你整理成设计概念。确认后，AI将为你生成新的全景图。",
-    position: "left"
-  },
-  {
-    target: "#community-nav-btn",
-    title: "设计社区",
-    desc: "点击顶栏的<b>「社区」</b>按钮，可以浏览其他同学的设计作品，点赞和分享你自己的创作。生成的全景图可以一键分享到社区！",
-    position: "bottom"
-  },
-  {
-    target: "#page-welcome h1",
-    title: "你的设计项目",
-    desc: "回到<b>首页</b>可以看到你所有的设计项目。后台生成的图像会自动出现在这里，点击即可查看进度或继续编辑。",
-    position: "bottom",
-    route: "welcome"
+    title: "🏠 你的设计项目",
+    desc: "回到<b>首页</b>，下方「我的设计」会列出你所有的项目。<br><br>🟡 <b>生成中</b>的项目点击可查看进度<br>🟢 <b>已完成</b>的项目点击可查看全景并继续编辑<br><br>后台生成不阻塞操作，你可以同时创作多个场景 ✨",
+    position: "center", route: "welcome"
   }
 ];
 
-let tutorialStep = 0;
+var tutorialStep = 0;
 
 function startTutorial() {
   tutorialStep = 0;
   document.getElementById("tutorial-overlay").classList.add("show");
   document.getElementById("tutorial-spotlight").style.display = "block";
   document.getElementById("tutorial-card").style.display = "block";
-  // Navigate to map first
-  if (state.route !== "map" && TUTORIAL_STEPS[0].route !== state.route) {
-    navigate("map");
-  }
-  setTimeout(() => showTutorialStep(0), 400);
+  navigate("map");
+  setTimeout(function(){ showTutorialStep(0); }, 500);
 }
 
 function endTutorial() {
@@ -2012,93 +2033,102 @@ function endTutorial() {
 
 function showTutorialStep(i) {
   tutorialStep = i;
-  const step = TUTORIAL_STEPS[i];
+  var step = TUTORIAL_STEPS[i];
   if (!step) { endTutorial(); return; }
 
-  // Navigate if step requires a different route
+  // Navigate if needed
   if (step.route && state.route !== step.route) {
     navigate(step.route);
-    setTimeout(() => showTutorialStep(i), 500);
+    setTimeout(function(){ showTutorialStep(i); }, 500);
     return;
   }
 
-  // Update card content
-  document.getElementById("tut-step-num").textContent = `第 ${i+1} 步 / 共 ${TUTORIAL_STEPS.length} 步`;
+  // Run onEnter action if defined
+  if (step.onEnter) { step.onEnter(); }
+
+  // Update card
+  document.getElementById("tut-step-num").textContent = (i+1) + " / " + TUTORIAL_STEPS.length;
   document.getElementById("tut-title").textContent = step.title;
   document.getElementById("tut-desc").innerHTML = step.desc;
 
-  // Update dots
-  const dots = document.getElementById("tut-dots");
-  dots.innerHTML = TUTORIAL_STEPS.map((_,j) =>
-    `<div class="tutorial-dot${j===i?' active':''}"></div>`
-  ).join("");
+  // Dots
+  var dotsHTML = "";
+  for (var j = 0; j < TUTORIAL_STEPS.length; j++) {
+    dotsHTML += '<div class="tutorial-dot' + (j === i ? ' active' : '') + '"></div>';
+  }
+  document.getElementById("tut-dots").innerHTML = dotsHTML;
 
-  // Update prev/next buttons
+  // Buttons
   document.getElementById("tut-prev").style.display = i === 0 ? "none" : "";
-  document.getElementById("tut-next").textContent = i === TUTORIAL_STEPS.length - 1 ? "完成" : "下一步";
-  document.getElementById("tut-next").onclick = i === TUTORIAL_STEPS.length - 1 ? endTutorial : nextTutorialStep;
+  var isLast = i === TUTORIAL_STEPS.length - 1;
+  document.getElementById("tut-next").textContent = isLast ? "🎉 完成" : "下一步 →";
+  document.getElementById("tut-next").onclick = isLast ? endTutorial : function(){ nextTutorialStep(); };
 
-  // Position spotlight and card
+  // Position
   positionTutorial(step.target, step.position);
 }
 
 function positionTutorial(selector, position) {
-  const spotlight = document.getElementById("tutorial-spotlight");
-  const card = document.getElementById("tutorial-card");
-  const target = document.querySelector(selector);
+  var spotlight = document.getElementById("tutorial-spotlight");
+  var card = document.getElementById("tutorial-card");
+  var target = selector ? document.querySelector(selector) : null;
 
-  if (!target) {
-    // Target not visible, center card
+  // Check if target is actually visible
+  var targetVisible = target && target.offsetParent !== null &&
+    target.getBoundingClientRect().width > 0 && target.getBoundingClientRect().height > 0;
+
+  if (!targetVisible) {
     spotlight.style.display = "none";
-    card.style.top = "50%"; card.style.left = "50%";
+    card.style.top = "50%";
+    card.style.left = "50%";
     card.style.transform = "translate(-50%,-50%)";
     return;
   }
 
-  const rect = target.getBoundingClientRect();
-  const pad = 8;
+  var rect = target.getBoundingClientRect();
+  var pad = 10;
   spotlight.style.display = "block";
-  spotlight.style.top = (rect.top - pad) + "px";
-  spotlight.style.left = (rect.left - pad) + "px";
-  spotlight.style.width = (rect.width + pad*2) + "px";
-  spotlight.style.height = (rect.height + pad*2) + "px";
+  spotlight.style.top = Math.max(0, rect.top - pad) + "px";
+  spotlight.style.left = Math.max(0, rect.left - pad) + "px";
+  spotlight.style.width = Math.min(innerWidth, rect.width + pad*2) + "px";
+  spotlight.style.height = Math.min(innerHeight, rect.height + pad*2) + "px";
 
-  // Position card near the target
-  const cardW = 360;
-  const cardH = 260;
-  let top, left;
-  const gap = 16;
+  // Position card based on available space
+  var cardW = Math.min(380, innerWidth - 32);
+  var gap = 20;
+  var top, left;
 
-  switch (position) {
-    case "top":
-      top = rect.top - cardH - gap;
-      left = rect.left + rect.width/2 - cardW/2;
-      break;
-    case "bottom":
-      top = rect.bottom + gap;
-      left = rect.left + rect.width/2 - cardW/2;
-      break;
-    case "left":
-      top = rect.top + rect.height/2 - cardH/2;
-      left = rect.left - cardW - gap;
-      break;
-    case "right":
-      top = rect.top + rect.height/2 - cardH/2;
-      left = rect.right + gap;
-      break;
-    default: // center
-      spotlight.style.display = "none";
-      top = innerHeight/2 - cardH/2;
-      left = innerWidth/2 - cardW/2;
+  // Prefer below target, then above, then right
+  var spaceBelow = innerHeight - rect.bottom - gap;
+  var spaceAbove = rect.top - gap;
+  var spaceRight = innerWidth - rect.right - gap;
+  var spaceLeft = rect.left - gap;
+
+  if (position === "top" || (position !== "bottom" && spaceBelow < 200 && spaceAbove > 200)) {
+    top = rect.top - 20;
+    left = rect.left + rect.width/2;
+    card.style.transform = "translate(-50%,-100%)";
+  } else if (position === "bottom" || spaceBelow > 150) {
+    top = rect.bottom + gap;
+    left = rect.left + rect.width/2;
+    card.style.transform = "translate(-50%,0)";
+  } else if (position === "left" || spaceLeft > 200) {
+    top = rect.top + rect.height/2;
+    left = rect.left - gap;
+    card.style.transform = "translate(-100%,-50%)";
+  } else {
+    // Center fallback
+    spotlight.style.display = "none";
+    top = innerHeight/2;
+    left = innerWidth/2;
+    card.style.transform = "translate(-50%,-50%)";
   }
 
-  // Clamp to viewport
-  top = Math.max(10, Math.min(innerHeight - cardH - 10, top));
-  left = Math.max(10, Math.min(innerWidth - cardW - 10, left));
+  top = Math.max(10, Math.min(innerHeight - 10, top));
+  left = Math.max(cardW/2 + 10, Math.min(innerWidth - cardW/2 - 10, left));
 
   card.style.top = top + "px";
   card.style.left = left + "px";
-  card.style.transform = "none";
 }
 
 function nextTutorialStep() {
@@ -2113,10 +2143,9 @@ function prevTutorialStep() {
   }
 }
 
-// Re-position on resize
-window.addEventListener("resize", () => {
+window.addEventListener("resize", function() {
   if (document.getElementById("tutorial-overlay").classList.contains("show")) {
-    const step = TUTORIAL_STEPS[tutorialStep];
+    var step = TUTORIAL_STEPS[tutorialStep];
     if (step) positionTutorial(step.target, step.position);
   }
 });
