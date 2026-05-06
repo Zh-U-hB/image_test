@@ -807,7 +807,18 @@ def auth_me():
 @app.route("/api/community/posts", methods=["GET"])
 def community_posts():
     posts = _load_json(POSTS_FILE, [])
-    return jsonify(posts)
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 12, type=int)
+    total = len(posts)
+    start = (page - 1) * per_page
+    items = posts[start:start + per_page]
+    return jsonify({
+        "items": items,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": max(1, -(-total // per_page))
+    })
 
 
 @app.route("/api/community/posts", methods=["POST"])
@@ -965,7 +976,18 @@ def create_project():
 def list_projects():
     projects = _load_json(PROJECTS_FILE, [])
     mine = [p for p in projects if p.get("username") == session["username"]]
-    return jsonify(mine)
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 8, type=int)
+    total = len(mine)
+    start = (page - 1) * per_page
+    items = mine[start:start + per_page]
+    return jsonify({
+        "items": items,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": max(1, -(-total // per_page))
+    })
 
 
 @app.route("/api/projects/<project_id>/status", methods=["GET"])
