@@ -298,6 +298,27 @@ html, body { height:100%; overflow-x:hidden; font-family:-apple-system,BlinkMacS
 .community-empty { text-align:center; padding:60px 20px; color:var(--text2); grid-column:1/-1; }
 .community-empty .empty-icon { font-size:56px; margin-bottom:12px; }
 
+.pagination { display:flex; align-items:center; justify-content:center; gap:8px; padding:20px; flex-shrink:0; }
+.pagination button {
+  min-width:36px; height:36px; border-radius:18px; border:1px solid rgba(255,255,255,.12);
+  background:transparent; color:var(--text); cursor:pointer; font-size:13px; font-family:inherit;
+  transition:all .2s; padding:0 12px;
+}
+.pagination button:hover { border-color:var(--accent); color:var(--accent); }
+.pagination button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+.pagination button:disabled { opacity:.3; cursor:not-allowed; }
+.pagination .page-info { font-size:12px; color:var(--text2); padding:0 8px; }
+
+.my-designs-pagination { display:flex; align-items:center; justify-content:center; gap:6px; margin-top:12px; }
+.my-designs-pagination button {
+  min-width:32px; height:32px; border-radius:16px; border:1px solid rgba(255,255,255,.12);
+  background:transparent; color:var(--text); cursor:pointer; font-size:12px; font-family:inherit;
+  transition:all .2s; padding:0 10px;
+}
+.my-designs-pagination button:hover { border-color:var(--accent); color:var(--accent); }
+.my-designs-pagination button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+.my-designs-pagination button:disabled { opacity:.3; cursor:not-allowed; }
+
 /* Community pano overlay */
 #community-pano-overlay {
   position:fixed; inset:0; z-index:70; background:#000;
@@ -445,6 +466,7 @@ html, body { height:100%; overflow-x:hidden; font-family:-apple-system,BlinkMacS
   <div id="my-designs-section" style="margin-top:32px;max-width:700px;width:90%;display:none;">
     <h3 style="font-size:16px;margin-bottom:12px;color:var(--text2);">我的设计</h3>
     <div id="my-designs-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;"></div>
+    <div id="my-designs-pagination"></div>
   </div>
 </div>
 
@@ -481,6 +503,7 @@ html, body { height:100%; overflow-x:hidden; font-family:-apple-system,BlinkMacS
     <button class="btn btn-outline btn-sm" onclick="navigate('map')">← 返回地图</button>
   </div>
   <div id="community-grid"></div>
+  <div id="community-pagination"></div>
 </div>
 
 <!-- Community Panorama Overlay -->
@@ -627,6 +650,8 @@ const state = {
   communityPosts: [],
   userLikes: {},
   communitySort: "hot",
+  communityPage: 1, communityTotal: 0,
+  projectsPage: 1, projectsTotal: 0,
   commPanoState: { lat:0, lon:0, fov:75, autoRotate:true, isDragging:false, prevMouse:{x:0,y:0} },
   agentSessionId: "", agentPhase: "guiding", agentRound: 0, useLLM: true,
 };
@@ -1368,35 +1393,55 @@ function setSort(sort) {
   renderCommunity();
 }
 
-async function renderCommunity() {
-  const grid = document.getElementById("community-grid");
+async function renderCommunity(page) {
+  if (page) state.communityPage = page;
+  var grid = document.getElementById("community-grid");
   try {
-    const resp = await fetch("/api/community/posts");
-    state.communityPosts = await resp.json();
-  } catch(e) { state.communityPosts = []; }
-  let posts = [...state.communityPosts];
-  if (state.communitySort === "hot") posts.sort((a,b)=>b.likes-a.likes);
-  else posts.sort((a,b)=>b.timestamp-a.timestamp);
+    var resp = await fetch("/api/community/posts?page=" + state.communityPage + "&per_page=12");
+    var data = await resp.json();
+    state.communityPosts = data.items || [];
+    state.communityTotal = data.total || 0;
+  } catch(e) { state.communityPosts = []; state.communityTotal = 0; }
+  var posts = [...state.communityPosts];
+  if (state.communitySort === "hot") posts.sort(function(a,b){ return b.likes - a.likes; });
+  else posts.sort(function(a,b){ return b.timestamp - a.timestamp; });
 
   if (posts.length === 0) {
-    grid.innerHTML = `<div class="community-empty"><div class="empty-icon">🏜️</div><p>${t("community_empty")}</p></div>`;
-    return;
+    grid.innerHTML = '<div class="community-empty"><div class="empty-icon">🏜️</div><p>' + t("community_empty") + '</p></div>';
+  } else {
+    grid.innerHTML = posts.map(function(p) {
+      var delBtn = state.isAdmin ? '<button data-delete="' + p.id + '" onclick="event.stopPropagation();if(confirm(\'确认删除？\')){fetch(\'/api/community/posts/' + p.id + '\',{method:\'DELETE\'}).then(function(r){return r.json()}).then(function(d){if(d.error)alert(d.error);else location.reload();})}" style="position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;border:2px solid #fff;background:rgba(255,0,0,.85);color:#fff;cursor:pointer;font-size:16px;line-height:1;z-index:10;pointer-events:auto;">×</button>' : '';
+      return '<div class="community-card" style="position:relative;" data-pano="' + p.id + '" style="cursor:pointer;">' +
+        '<img src="' + p.image_url + '" alt="design" loading="lazy" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22180%22><rect fill=%22%231a1030%22 width=%22300%22 height=%22180%22/><text fill=%22%23aaa%22 x=%22150%22 y=%2295%22 text-anchor=%22middle%22 font-size=%2214%22>Image N/A</text></svg>\'">' +
+        '<div class="card-body">' +
+          '<div class="card-prompt">' + (p.prompt||"") + '</div>' +
+          '<div class="card-meta">' +
+            '<span class="card-likes">❤️ ' + (p.likes||0) + '</span>' +
+            '<span class="card-author">' + (p.author||"anonymous") + '</span>' +
+          '</div>' +
+        '</div>' + delBtn +
+      '</div>';
+    }).join("");
   }
-  grid.innerHTML = posts.map(p => `
-    <div class="community-card" style="position:relative;" data-pano="${p.id}" style="cursor:pointer;">
-      <img src="${p.image_url}" alt="design" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22180%22><rect fill=%22%231a1030%22 width=%22300%22 height=%22180%22/><text fill=%22%23aaa%22 x=%22150%22 y=%2295%22 text-anchor=%22middle%22 font-size=%2214%22>Image N/A</text></svg>'">
-      <div class="card-body">
-        <div class="card-prompt">${p.prompt||""}</div>
-        <div class="card-meta">
-          <span class="card-likes">❤️ ${p.likes||0}</span>
-          <span class="card-author">${p.author||"anonymous"}</span>
-        </div>
-      </div>
-      ${state.isAdmin ? `<button data-delete="${p.id}" onclick="event.stopPropagation();if(confirm('确认删除？')){fetch('/api/community/posts/${p.id}',{method:'DELETE'}).then(r=>r.json()).then(d=>{if(d.error)alert(d.error);else location.reload();})}" style="position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;border:2px solid #fff;background:rgba(255,0,0,.85);color:#fff;cursor:pointer;font-size:16px;line-height:1;z-index:10;pointer-events:auto;">×</button>` : ''}
-    </div>
-  `).join("");
+
+  // Pagination controls
+  var totalPages = Math.max(1, Math.ceil(state.communityTotal / 12));
+  var pgHTML = '<div class="pagination">';
+  pgHTML += '<button ' + (state.communityPage <= 1 ? 'disabled' : '') + ' onclick="renderCommunity(' + (state.communityPage-1) + ')">‹</button>';
+  for (var i = 1; i <= totalPages; i++) {
+    if (totalPages > 7 && i > 2 && i < totalPages - 1 && Math.abs(i - state.communityPage) > 1) {
+      if (i === 3 || i === totalPages - 2) pgHTML += '<span style="color:var(--text2)">…</span>';
+      continue;
+    }
+    pgHTML += '<button class="' + (i === state.communityPage ? 'active' : '') + '" onclick="renderCommunity(' + i + ')">' + i + '</button>';
+  }
+  pgHTML += '<button ' + (state.communityPage >= totalPages ? 'disabled' : '') + ' onclick="renderCommunity(' + (state.communityPage+1) + ')">›</button>';
+  pgHTML += '<span class="page-info">共 ' + state.communityTotal + ' 个</span>';
+  pgHTML += '</div>';
+  document.getElementById("community-pagination").innerHTML = pgHTML;
+
   // Single delegated click handler on the grid
-  grid.onclick = (e) => {
+  grid.onclick = function(e) {
     const delBtn = e.target.closest("[data-delete]");
     if (delBtn) {
       deletePost(delBtn.dataset.delete);
@@ -1409,39 +1454,57 @@ async function renderCommunity() {
   };
 }
 
-async function loadMyDesigns() {
+function loadMyDesigns(page) {
   if (!state.loggedIn) return;
-  try {
-    const resp = await fetch("/api/projects");
-    const projects = await resp.json();
-    const section = document.getElementById("my-designs-section");
-    const grid = document.getElementById("my-designs-grid");
+  if (page) state.projectsPage = page;
+  var section = document.getElementById("my-designs-section");
+  var grid = document.getElementById("my-designs-grid");
+  fetch("/api/projects?page=" + state.projectsPage + "&per_page=8").then(function(resp) {
+    return resp.json();
+  }).then(function(data) {
+    var projects = data.items || [];
+    state.projectsTotal = data.total || 0;
     if (!projects || projects.length === 0) { section.style.display = "none"; return; }
     section.style.display = "block";
     // Restart polling for any still-generating projects
-    projects.forEach(p => {
-      if (p.status === "generating" && !state.activeProjects[p.id]?._timer) {
+    projects.forEach(function(p) {
+      if (p.status === "generating" && !(state.activeProjects[p.id] && state.activeProjects[p.id]._timer)) {
         state.activeProjects[p.id] = p;
         startProjectPolling(p.id);
       }
     });
-    grid.innerHTML = projects.slice(0, 8).map(p => {
-      const isDone = p.status === "done";
-      const statusBadge = isDone
-        ? `<span style="position:absolute;top:6px;right:6px;background:#22c55e;color:#fff;font-size:10px;padding:2px 8px;border-radius:8px;z-index:2;">已完成</span>`
-        : `<span style="position:absolute;top:6px;right:6px;background:rgba(234,179,8,.9);color:#000;font-size:10px;padding:2px 8px;border-radius:8px;z-index:2;animation:pulse 1.5s ease-in-out infinite;">生成中</span>`;
-      const imgSrc = isDone ? p.result_url : p.panorama_url;
-      const onclick = isDone
-        ? `event.stopPropagation();viewProjectResult('${p.id}','${p.result_url}','${(p.point_lat||'')}','${(p.point_lon||'')}')`
-        : `event.stopPropagation();showProjectProgress('${p.id}')`;
-      return `
-        <div style="position:relative;border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.08);transition:all .2s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='rgba(255,255,255,.08)'" onclick="${onclick}">
-          <img src="${imgSrc}" style="width:100%;height:100px;object-fit:cover;" loading="lazy" onerror="this.style.display='none'">
-          ${statusBadge}
-          <div style="padding:8px;font-size:11px;color:var(--text2);">${(p.prompt||"").substring(0,40)}...</div>
-        </div>`;
+    grid.innerHTML = projects.map(function(p) {
+      var isDone = p.status === "done";
+      var statusBadge = isDone
+        ? '<span style="position:absolute;top:6px;right:6px;background:#22c55e;color:#fff;font-size:10px;padding:2px 8px;border-radius:8px;z-index:2;">已完成</span>'
+        : '<span style="position:absolute;top:6px;right:6px;background:rgba(234,179,8,.9);color:#000;font-size:10px;padding:2px 8px;border-radius:8px;z-index:2;animation:pulse 1.5s ease-in-out infinite;">生成中</span>';
+      var imgSrc = isDone ? p.result_url : p.panorama_url;
+      var onclick = isDone
+        ? "event.stopPropagation();viewProjectResult('" + p.id + "','" + p.result_url + "','" + (p.point_lat||"") + "','" + (p.point_lon||"") + "')"
+        : "event.stopPropagation();showProjectProgress('" + p.id + "')";
+      return '<div style="position:relative;border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.08);transition:all .2s;" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'rgba(255,255,255,.08)\'" onclick="' + onclick + '">' +
+        '<img src="' + imgSrc + '" style="width:100%;height:100px;object-fit:cover;" loading="lazy" onerror="this.style.display=\'none\'">' +
+        statusBadge +
+        '<div style="padding:8px;font-size:11px;color:var(--text2);">' + (p.prompt||"").substring(0,40) + '...</div>' +
+      '</div>';
     }).join("");
-  } catch(e) {}
+
+    // Pagination controls
+    var totalPages = Math.max(1, Math.ceil(state.projectsTotal / 8));
+    var pgHTML = '<div class="my-designs-pagination">';
+    pgHTML += '<button ' + (state.projectsPage <= 1 ? 'disabled' : '') + ' onclick="loadMyDesigns(' + (state.projectsPage-1) + ')">‹</button>';
+    for (var i = 1; i <= totalPages; i++) {
+      if (totalPages > 7 && i > 2 && i < totalPages - 1 && Math.abs(i - state.projectsPage) > 1) {
+        if (i === 3 || i === totalPages - 2) pgHTML += '<span style="color:var(--text2);font-size:12px;">…</span>';
+        continue;
+      }
+      pgHTML += '<button class="' + (i === state.projectsPage ? 'active' : '') + '" onclick="loadMyDesigns(' + i + ')">' + i + '</button>';
+    }
+    pgHTML += '<button ' + (state.projectsPage >= totalPages ? 'disabled' : '') + ' onclick="loadMyDesigns(' + (state.projectsPage+1) + ')">›</button>';
+    pgHTML += '<span style="font-size:11px;color:var(--text2);margin-left:4px;">共 ' + state.projectsTotal + ' 个</span>';
+    pgHTML += '</div>';
+    document.getElementById("my-designs-pagination").innerHTML = pgHTML;
+  }).catch(function(e) {});
 }
 
 async function viewProjectResult(projectId, resultUrl, lat, lon) {
