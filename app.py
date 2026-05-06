@@ -541,7 +541,7 @@ def _call_llm(messages, max_tokens=800):
     resp = requests.post(url, headers={
         "Authorization": f"Bearer {LLM_API_KEY}",
         "Content-Type": "application/json"
-    }, json=payload, timeout=60)
+    }, json=payload, timeout=120)
     if resp.status_code != 200:
         raise Exception(f"LLM API error {resp.status_code}: {resp.text[:200]}")
     return resp.json()["choices"][0]["message"]["content"]
